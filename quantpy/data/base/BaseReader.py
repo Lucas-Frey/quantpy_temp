@@ -1,14 +1,9 @@
-import requests
 import abc
-import multiprocessing
-from concurrent.futures import TimeoutError
-from pebble import ProcessPool
-import itertools
 
 class BaseReader(object):
 
     def __init__(self, symbols, start=None, end=None, interval=None,
-                 retry_count=3, pause=0.1, timeout=30):
+                 retry_count=3, pause=0.1, timeout=2):
         """
         Initializer method for the BaseReader class.
         :param symbols: The list of symbols to be used.
@@ -79,17 +74,6 @@ class BaseReader(object):
 
         raise NotImplementedError('Subclass has not implemented property.')
 
-    @property
-    @abc.abstractmethod
-    def _chunksize(self):
-        """
-        Method to determine the chunksize to process requests. Needs to be
-        implemented in a subclass.
-        :return:
-        """
-
-        raise NotImplementedError('Subclass has not implemented property.')
-
     @abc.abstractmethod
     def _sanitize_dates(self, start=None, end=None):
         """
@@ -127,74 +111,25 @@ class BaseReader(object):
 
         raise NotImplementedError('Subclass has not implemented method.')
 
+    @abc.abstractmethod
     def read(self):
+        """
+        Method to read the data.
+        :return:
+        """
+        raise NotImplementedError('Subclass has not implemented method.')
 
-        if len(self.symbols) > 1:
-            symbol_json_dict = self.multi_read()
-        else:
-            symbol_json_dict = self.single_read(self.symbols[0])
-
-        symbol_data_dict = {symbol: self._sanitize_data(json_data)
-                            for symbol, json_data in symbol_json_dict.items()}
-
-        return symbol_data_dict
-
+    @abc.abstractmethod
     def single_read(self, symbol, session=None):
-        print('Getting {}'.format(symbol))
+        """
 
-        if not session:
-            data = requests.get(url=self._url.format(symbol),
-                                params=self._params,
-                                timeout=self.timeout).json()
-        else:
-            data = session.get(url=self._url.format(symbol),
-                               params=self._params,
-                               timeout=self.timeout).json()
+        :param symbol:
+        :param session:
+        :return:
+        """
 
-        return {symbol: data}
+        raise NotImplementedError('Subclass has not implemented method.')
 
+    @abc.abstractmethod
     def multi_read(self):
-        index = 0
-        symbol_json_dict = {}
-        session = requests.Session()
-
-        with ProcessPool(multiprocessing.cpu_count()) as pool:
-            # Gets a ProcessMapFuture object using the ProcessPool's .map method.
-            # The .map method completes the processes asynchronously.
-            results = pool.map(self.single_read_wrapper, zip(self.symbols,
-                                                             itertools.repeat(session)))
-
-            # Gets an iterator from the ProcessPool's .map method result.
-            results_interator = results.result()
-
-            # Iterate through the iterator's results catching all timeout exceptions
-            # and stop exceptions.
-            while True:
-                try:
-                    # Gets the next value in the iterator.
-                    symbol_data = next(results_interator)
-
-                    # Appends it to the symbol tuple list.
-                    symbol_json_dict.update(symbol_data)
-
-                except StopIteration:
-                    # Iterators throw a StopIteration exception when they are done.
-                    break
-
-                except TimeoutError as te:
-                    # Catches a TimeoutError if a symbols information took to long.
-                    pass
-
-                except Exception as e:
-                    # Catches all other errors related to getting the information.
-                    pass
-
-                finally:
-                    index += 1
-
-        session.close()
-
-        return symbol_json_dict
-
-    def single_read_wrapper(self, arguments):
-        return self.single_read(*arguments)
+        raise NotImplementedError('Subclass has not implemented method.')

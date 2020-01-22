@@ -2,6 +2,10 @@ import datetime
 import time
 import pandas as pd
 import requests
+import multiprocessing
+from requests.exceptions import Timeout
+from pebble import ProcessPool
+import itertools
 
 from quantpy.data.base.BaseReader import BaseReader
 
@@ -9,7 +13,7 @@ from quantpy.data.base.BaseReader import BaseReader
 class YahooQuoteReader(BaseReader):
 
     def __init__(self, symbols, start=None, end=None, interval='1d',
-                 retry_count=3, pause=0.1, timeout=30, session=None):
+                 retry_count=3, pause=0.1, timeout=2, session=None):
         """
         Initializer method for the YahooQuoteReader class.
         :param symbols: The list of symbols to be used.
@@ -113,9 +117,118 @@ class YahooQuoteReader(BaseReader):
 
         return start, end
 
+    def _check_errors(self, data=None):
+        # If Yahoo is unresponsive, then throws RuntimeError.
+        if 'Will be right back' in data.text:
+            raise RuntimeError('Yahoo Finance is currently down.')
+
+        # Convert data to a JSON object.
+        data_json = data.json()
+
+        # If Yahoo sends an error, then through a RuntimeError.
+        if ('chart' in data_json) and (data_json['chart']['error']):
+            raise RuntimeError('Error received from Yahoo: {}'.format(
+                str(data_json['chart']['error']['description'])))
+
+        # If Yahoo sends no data, then through a RuntimeError.
+        if ('chart' not in data_json) or (data_json['chart']['result'] is None) or \
+                (not data_json['chart']['result']):
+            raise RuntimeError('No data recieved from Yahoo.')
+
+    def read(self):
+
+        if len(self.symbols) > 1:
+            symbol_dict, times = self.multi_read()
+        else:
+            symbol_dict, times = self.single_read(self.symbols[0])
+
+        return symbol_dict, times
+
+    def single_read(self, symbol, session=None):
+        cur = time.time()
+
+        try:
+            if session:
+                data = session.get(url=self._url.format(symbol),
+                                   params=self._params,
+                                   timeout=1)
+            else:
+                data = requests.get(url=self._url.format(symbol),
+                                    params=self._params,
+                                    timeout=1)
+
+            data_dict = {symbol: self._sanitize_data(data.json())}
+
+        except Timeout as to:
+            # Catches a TimeoutError if a symbols information took to long.
+            data_dict = {symbol: to}
+
+        except TypeError as te:
+            # If Yahoo is unresponsive, then throws RuntimeError.
+            if 'Will be right back' in data.text:
+                data_dict = {symbol: 'Yahoo Finance is currently down.'}
+            else:
+                data = data.json()
+
+                # If Yahoo sends an error, then through a RuntimeError.
+                if ('chart' in data) and (data['chart']['error']):
+                    data_dict = {symbol: str(data['chart']['error']['description'])}
+
+                # If Yahoo sends no data, then through a RuntimeError.
+                elif ('chart' not in data) or (data['chart']['result'] is None) or (not data['chart']['result']):
+                    data_dict = {symbol: 'No data recieved from Yahoo.'}
+
+                else:
+                    data_dict = {symbol: 'No data'}
+
+            print(data_dict[symbol])
+
+        except Exception as e:
+            print(e)
+            # Catches all other errors related to getting the information.
+            data_dict = {symbol: e}
+
+        return data_dict, {symbol: round(time.time() - cur, 2)}
+
+    def multi_read(self):
+        symbol_json_dict = {}
+        times = {}
+        session = requests.Session()
+
+        with ProcessPool(multiprocessing.cpu_count()) as pool:
+            # Gets a ProcessMapFuture object using the ProcessPool's .map method.
+            # The .map method completes the processes asynchronously.
+            results = pool.map(self.single_read_wrapper,
+                               zip(self.symbols, itertools.repeat(session)))
+
+            # Gets an iterator from the ProcessPool's .map method result.
+            results_interator = results.result()
+
+            # Iterate through the iterator's results catching all timeout exceptions
+            # and stop exceptions.
+            while True:
+                try:
+                    # Gets the next value in the iterator.
+                    symbol_data = next(results_interator)
+
+                    # Appends it to the symbol tuple list.
+                    symbol_json_dict.update(symbol_data[0])
+                    times.update(symbol_data[1])
+                except StopIteration:
+                    # Iterators throw a StopIteration exception when they are done.
+                    break
+
+        session.close()
+
+        return symbol_json_dict, times
+
+    def single_read_wrapper(self, arguments):
+        return self.single_read(*arguments)
+
     @staticmethod
     def _sanitize_data(data=None):
         # Get the open, high, low, close, volume (OHLCV) data from the JSON.
+
         ohlcv_data = data['chart']['result'][0]['indicators']['quote'][0]
 
         # Get the adjusted close (adjclose) data from the JSON.
