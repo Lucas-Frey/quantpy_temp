@@ -26,6 +26,7 @@ class BaseReader(object):
         self.retry_count = retry_count
         self.pause = pause
         self.timeout = timeout
+        self.read_called = False
 
     @property
     @abc.abstractmethod
@@ -62,7 +63,7 @@ class BaseReader(object):
 
     def _sanitize_data(self, data):
         try:
-            data = self._organize_data(data)
+            data = self._parse_data(data)
 
         except Exception as e:
             data = self._check_data(data)
@@ -79,7 +80,7 @@ class BaseReader(object):
         raise NotImplementedError('Subclass has not implemented property.')
 
     @abc.abstractmethod
-    def _organize_data(self, data):
+    def _parse_data(self, data):
         """
         Method to check the data for errors. Must be implemented by a subclass.
         :return: The sanitized data.
@@ -100,6 +101,8 @@ class BaseReader(object):
         else:
             # If only one symbol requested, then do a single read.
             symbol_dict, times = self.single_read(self.symbols[0])
+
+        self.read_called = True
 
         return symbol_dict, times
 
