@@ -31,7 +31,7 @@ class YahooQuoteReader(BaseQuoteReader):
 
         # Since symbols, start, and end can be input in a variety of forms, they
         # are formatted to be complacent with the API request.
-        symbols = self._sanitize_symbols(symbols)
+        symbols = self._parse_symbols(symbols)
         start, end = self._sanitize_dates(start, end)
 
         self.events = events

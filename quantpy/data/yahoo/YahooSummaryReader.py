@@ -3,92 +3,73 @@ import pandas as pd
 import collections
 
 import quantpy.data.yahoo.YahooExceptions as YahooExceptions
+from quantpy.data.yahoo.YahooSummary import YahooSummary
 import re
 
 
 class YahooSummaryReader(BaseReader):
 
-    def __init__(self, symbols, include_financials=False, include_holders=False,
-                 include_trends=False, include_nonfinancials=False,
+    def __init__(self, symbols,
+                 include_all=True,
+                 include_asset_profile=False,
+                 include_income_statement_history=False,
+                 include_income_statement_history_quarterly=False,
+                 include_balance_sheet_history=False,
+                 include_balance_sheet_history_quarterly=False,
+                 include_cash_flow_statement_history=False,
+                 include_cash_flow_statement_history_quarterly=False,
+                 include_earnings=False,
+                 include_earnings_history=False,
+                 include_financial_data=False,
+                 include_default_key_statistics=False,
+                 include_institution_ownership=False,
+                 include_insider_holders=False,
+                 include_insider_transactions=False,
+                 include_fund_ownership=False,
+                 include_major_direct_holders=False,
+                 include_major_holders_breakdown=False,
+                 include_recommendation_trend=False,
+                 include_earnings_trend=False,
+                 include_industry_trend=False,
+                 include_index_trend=False,
+                 include_sector_trend=False,
+                 include_calendar_events=False,
+                 include_sec_filings=False,
+                 include_upgrade_downgrade_history=False,
+                 include_net_share_purchase_activity=False,
                  retry_count=3, pause=0.1, timeout=5):
-        """
-        Initializer function for the YahooHoldersReader class.
-        :param symbols: The list of symbols to be used.
-        :type symbols: str or list
-        :param retry_count: Optional. The amount of times to retry an api call.
-        :type retry_count int
-        :param pause: Optional. The amount of time to pause between retries.
-        :type pause float
-        :param timeout: Optional. The amount of time until a request times out.
-        :type timeout int
-        """
 
-        self._include_financials = include_financials
-        self._include_holders = include_holders
-        self._include_trends = include_trends
-        self._include_nonfinancials = include_nonfinancials
+        self._include_asset_profile = include_all or include_asset_profile
+        self._include_income_statement_history = include_all or include_income_statement_history
+        self._include_income_statement_history_quarterly = include_all or include_income_statement_history_quarterly
+        self._include_balance_sheet_history = include_all or include_balance_sheet_history
+        self._include_balance_sheet_history_quarterly = include_all or include_balance_sheet_history_quarterly
+        self._include_cash_flow_statement_history = include_all or include_cash_flow_statement_history
+        self._include_cash_flow_statement_history_quarterly = include_all or include_cash_flow_statement_history_quarterly
+        self._include_earnings = include_earnings
+        self._include_earnings_history = include_all or include_earnings_history
+        self._include_financial_data = include_all or include_financial_data
+        self._include_default_key_statistics = include_all or include_default_key_statistics
 
-        self._include_asset_profile = self._include_financials
-        self._profile = None
-        self._company_officers = None
-        self._include_income_statement_history = self._include_financials
-        self._income_statement_history = None
-        self._include_income_statement_history_quarterly = self._include_financials
-        self._income_statement_history_quarterly = None
-        self._include_balance_sheet_history = self._include_financials
-        self._balance_sheet_history = None
-        self._include_balance_sheet_history_quarterly = self._include_financials
-        self._balance_sheet_history_quarterly = None
-        self._include_cash_flow_statement_history = self._include_financials
-        self._cash_flow_statement_history = None
-        self._include_cash_flow_statement_history_quarterly = self._include_financials
-        self._cash_flow_statement_history_quarterly = None
-        self._include_earnings = self._include_financials
-        self._earnings_estimates = None
-        self._earnings_quarterly = None
-        self._financials_quarterly = None
-        self._financials_yearly = None
-        self._include_earnings_history = self._include_financials
-        self._earnings_history = None
-        self._include_financial_data = self._include_financials
-        self._financial_data = None
-        self._include_default_key_statistics = self._include_financials
-        self._default_key_statistics = None
+        self._include_institution_ownership = include_all or include_institution_ownership
+        self._include_insider_holders = include_all or include_insider_holders
+        self._include_insider_transactions = include_all or include_insider_transactions
+        self._include_fund_ownership = include_all or include_fund_ownership
+        self._include_major_direct_holders = include_all or include_major_direct_holders
+        self._include_major_direct_holders_breakdown = include_all or include_major_holders_breakdown
 
-        self._include_institution_ownership = self._include_holders
-        self._institution_ownership = None
-        self._include_insider_holders = self._include_holders
-        self._insider_holders = None
-        self._include_insider_transactions = self._include_holders
-        self._insider_transactions = None
-        self._include_fund_ownership = self._include_holders
-        self._fund_ownership = None
-        self._include_major_direct_holders = self._include_holders
-        self._major_direct_holders = None
-        self._include_major_holders_breakdown = self._include_holders
-        self._major_direct_holders_breakdown = None
+        self._include_recommendation_trend = include_all or include_recommendation_trend
+        self._include_earnings_trend = include_all or include_earnings_trend
+        self._include_industry_trend = include_all or include_industry_trend
+        self._include_index_trend = include_all or include_index_trend
+        self._include_sector_trend = include_all or include_sector_trend
 
-        self._include_recommendation_trend = self._include_trends
-        self._recommendation_trend = None
-        self._include_earnings_trend = self._include_trends
-        self._earnings_trend = None
-        self._include_industry_trend = self._include_trends
-        self._industry_trend = None
-        self._include_index_trend = self._include_trends
-        self._index_trend_info = None
-        self._index_trend_estimate = None
-        self._include_sector_trend = self._include_trends
-        self._sector_trend = None
+        self._include_calendar_events = include_all or include_calendar_events
+        self._include_sec_filings = include_all or include_sec_filings
+        self._include_upgrade_downgrade_history = include_all or include_upgrade_downgrade_history
+        self._include_net_share_purchase_activity = include_all or include_net_share_purchase_activity
 
-        self._include_calendar_events = self._include_nonfinancials
-        self._calendar_events_earnings = None
-        self._calendar_events_dividends = None
-        self._include_sec_filings = self._include_nonfinancials
-        self._sec_filings = None
-        self._include_upgrade_downgrade_history = self._include_nonfinancials
-        self._upgrade_downgrade_history = None
-        self._include_net_share_purchase_activity = self._include_nonfinancials
-        self._net_share_purchase_activity = None
+        self._include_all = include_all
 
         self.pep_pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
@@ -113,567 +94,63 @@ class YahooSummaryReader(BaseReader):
         """
         modules_list = ''
 
-        if self._include_financials:
-            if self._include_asset_profile:
-                modules_list += 'assetProfile,'
-            if self._include_income_statement_history:
-                modules_list += 'incomeStatementHistory,'
-            if self._include_income_statement_history_quarterly:
-                modules_list += 'incomeStatementHistoryQuarterly,'
-            if self._include_balance_sheet_history:
-                modules_list += 'balanceSheetHistory,'
-            if self._include_balance_sheet_history_quarterly:
-                modules_list += 'balanceSheetHistoryQuarterly,'
-            if self._include_cash_flow_statement_history:
-                modules_list += 'cashFlowStatementHistory,'
-            if self._include_cash_flow_statement_history_quarterly:
-                modules_list += 'cashFlowStatementHistoryQuarterly,'
-            if self._include_earnings:
-                modules_list += 'earnings,'
-            if self._include_earnings_history:
-                modules_list += 'earningsHistory,'
-            if self._include_financial_data:
-                modules_list += 'financialData,'
-            if self._include_default_key_statistics:
-                modules_list += 'defaultKeyStatistics,'
+        if self._include_asset_profile:
+            modules_list += 'assetProfile,'
+        if self._include_income_statement_history:
+            modules_list += 'incomeStatementHistory,'
+        if self._include_income_statement_history_quarterly:
+            modules_list += 'incomeStatementHistoryQuarterly,'
+        if self._include_balance_sheet_history:
+            modules_list += 'balanceSheetHistory,'
+        if self._include_balance_sheet_history_quarterly:
+            modules_list += 'balanceSheetHistoryQuarterly,'
+        if self._include_cash_flow_statement_history:
+            modules_list += 'cashFlowStatementHistory,'
+        if self._include_cash_flow_statement_history_quarterly:
+            modules_list += 'cashFlowStatementHistoryQuarterly,'
+        if self._include_earnings:
+            modules_list += 'earnings,'
+        if self._include_earnings_history:
+            modules_list += 'earningsHistory,'
+        if self._include_financial_data:
+            modules_list += 'financialData,'
+        if self._include_default_key_statistics:
+            modules_list += 'defaultKeyStatistics,'
 
-        if self._include_holders:
-            if self._include_institution_ownership:
-                modules_list += 'institutionOwnership,'
-            if self._include_insider_holders:
-                modules_list += 'insiderHolders,'
-            if self._include_insider_transactions:
-                modules_list += 'insiderTransactions,'
-            if self._include_fund_ownership:
-                modules_list += 'fundOwnership,'
-            if self._include_major_direct_holders:
-                modules_list += 'majorDirectHolders,'
-            if self._include_major_holders_breakdown:
-                modules_list += 'majorHoldersBreakdown,'
+        if self._include_institution_ownership:
+            modules_list += 'institutionOwnership,'
+        if self._include_insider_holders:
+            modules_list += 'insiderHolders,'
+        if self._include_insider_transactions:
+            modules_list += 'insiderTransactions,'
+        if self._include_fund_ownership:
+            modules_list += 'fundOwnership,'
+        if self._include_major_direct_holders:
+            modules_list += 'majorDirectHolders,'
+        if self._include_major_direct_holders_breakdown:
+            modules_list += 'majorHoldersBreakdown,'
 
-        if self._include_trends:
-            if self._include_recommendation_trend:
-                modules_list += 'recommendationTrend,'
-            if self._include_earnings_trend:
-                modules_list += 'earningsTrend,'
-            if self._include_industry_trend:
-                modules_list += 'industryTrend,'
-            if self._include_index_trend:
-                modules_list += 'indexTrend,'
-            if self._include_sector_trend:
-                modules_list += 'sectorTrend,'
+        if self._include_recommendation_trend:
+            modules_list += 'recommendationTrend,'
+        if self._include_earnings_trend:
+            modules_list += 'earningsTrend,'
+        if self._include_industry_trend:
+            modules_list += 'industryTrend,'
+        if self._include_index_trend:
+            modules_list += 'indexTrend,'
+        if self._include_sector_trend:
+            modules_list += 'sectorTrend,'
 
-        if self._include_nonfinancials:
-            if self._include_calendar_events:
-                modules_list += 'calendarEvents'
-            if self._include_sec_filings:
-                modules_list += 'secFilings'
-            if self._include_upgrade_downgrade_history:
-                modules_list += 'upgradeDowngradeHistory'
-            if self._include_net_share_purchase_activity:
-                modules_list += 'netSharePurchaseActivity'
+        if self._include_calendar_events:
+            modules_list += 'calendarEvents'
+        if self._include_sec_filings:
+            modules_list += 'secFilings'
+        if self._include_upgrade_downgrade_history:
+            modules_list += 'upgradeDowngradeHistory'
+        if self._include_net_share_purchase_activity:
+            modules_list += 'netSharePurchaseActivity'
 
         return {'modules': modules_list}
-
-    @property
-    def profile(self):
-        """
-        Gets the campanies profile:
-        :return:
-        """
-        if self._profile:
-            return self._profile
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_asset_profile:
-                        return self._profile
-                    else:
-                        raise ValueError('Asset profile not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def company_officers(self):
-        if self._company_officers:
-            return self._company_officers
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_asset_profile:
-                        return self._company_officers
-                    else:
-                        raise ValueError('Asset profile not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def income_statement_history(self):
-        if self._income_statement_history:
-            return self._income_statement_history
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_income_statement_history:
-                        return self._income_statement_history
-                    else:
-                        raise ValueError('Income statement history not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def income_statement_history_quarterly(self):
-        if self._income_statement_history_quarterly:
-            return self._income_statement_history_quarterly
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_balance_sheet_history_quarterly:
-                        return self._income_statement_history_quarterly
-                    else:
-                        raise ValueError('Quartery income statement history not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def balance_sheet_history(self):
-        if self._balance_sheet_history:
-            return self._balance_sheet_history
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_balance_sheet_history:
-                        return self._balance_sheet_history
-                    else:
-                        raise ValueError('Balance sheet history not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def balance_sheet_history_quarterly(self):
-        if self._balance_sheet_history_quarterly:
-            return self._balance_sheet_history_quarterly
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_balance_sheet_history_quarterly:
-                        return self._balance_sheet_history_quarterly
-                    else:
-                        raise ValueError('Quarterly balance sheet history not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def cash_flow_statement_history(self):
-        if self._cash_flow_statement_history:
-            return self._cash_flow_statement_history
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_cash_flow_statement_history:
-                        return self._cash_flow_statement_history
-                    else:
-                        raise ValueError('Cash flow history not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def cash_flow_statement_history_quarterly(self):
-        if self._cash_flow_statement_history_quarterly:
-            return self._cash_flow_statement_history_quarterly
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_balance_sheet_history_quarterly:
-                        return self._cash_flow_statement_history_quarterly
-                    else:
-                        raise ValueError('Quarterly cash flow history not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def earnings_estimates(self):
-        if self._earnings_estimates:
-            return self._earnings_estimates
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_earnings:
-                        return self._earnings_estimates
-                    else:
-                        raise ValueError('Earnings not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def earnings(self):
-        if self._earnings_quarterly:
-            return self._earnings_quarterly
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_earnings:
-                        return self._earnings_quarterly
-                    else:
-                        raise ValueError('Earnings not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def financials_quarterly(self):
-        if self._financials_quarterly:
-            return self._financials_quarterly
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_earnings:
-                        return self._financials_quarterly
-                    else:
-                        raise ValueError('Earnings not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def financials_yearly(self):
-        if self._financials_yearly:
-            return self._financials_yearly
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_earnings:
-                        return self._financials_yearly
-                    else:
-                        raise ValueError('Earnings not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def earnings_history(self):
-        if self._earnings_history:
-            return self._earnings_history
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_earnings_history:
-                        return self._earnings_history
-                    else:
-                        raise ValueError('Earnings history not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def financial_data(self):
-        if self._financial_data:
-            return self._financial_data
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_financial_data:
-                        return self.financial_data
-                    else:
-                        raise ValueError('Financial data not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def default_key_statistics(self):
-        if self._default_key_statistics:
-            return self._default_key_statistics
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_default_key_statistics:
-                        return self._default_key_statistics
-                    else:
-                        raise ValueError('Default key statistics not requested.')
-                else:
-                    raise ValueError('Financials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def institution_ownership(self):
-        if self._institution_ownership:
-            return self._institution_ownership
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_institution_ownership:
-                        return self._institution_ownership
-                    else:
-                        raise ValueError('Institutional ownership not requested.')
-                else:
-                    raise ValueError('Holders not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def insider_holders(self):
-        if self._insider_holders:
-            return self._insider_holders
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_insider_holders:
-                        return self._insider_holders
-                    else:
-                        raise ValueError('Insider holders not requested.')
-                else:
-                    raise ValueError('Holders not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def insider_transactions(self):
-        if self._insider_transactions:
-            return self._insider_transactions
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_insider_transactions:
-                        return self._insider_transactions
-                    else:
-                        raise ValueError('Insider transactions not requested.')
-                else:
-                    raise ValueError('Holders not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def fund_ownership(self):
-        if self._fund_ownership:
-            return self._fund_ownership
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_fund_ownership:
-                        return self._fund_ownership
-                    else:
-                        raise ValueError('Fund ownership not requested.')
-                else:
-                    raise ValueError('Holders not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def major_direct_holders(self):
-        if self._major_direct_holders:
-            return self._major_direct_holders
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_major_direct_holders:
-                        return self._major_direct_holders
-                    else:
-                        raise ValueError('Major direct holders not requested.')
-                else:
-                    raise ValueError('Holders not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def major_holders_breakdown(self):
-        if self._major_direct_holders_breakdown:
-            return self._major_direct_holders_breakdown
-        else:
-            if self.read_called:
-                if self._include_financials:
-                    if self._include_major_holders_breakdown:
-                        return self._major_direct_holders_breakdown
-                    else:
-                        raise ValueError('Major direct holders breakdown not requested.')
-                else:
-                    raise ValueError('Holders not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def recommendation_trend(self):
-        if self._recommendation_trend:
-            return self._recommendation_trend
-        else:
-            if self.read_called:
-                if self._include_trends:
-                    if self._include_recommendation_trend:
-                        return self._recommendation_trend
-                    else:
-                        raise ValueError('Recommendation trend not requested.')
-                else:
-                    raise ValueError('Trends not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def earnings_trend(self):
-        if self._earnings_trend:
-            return self._earnings_trend
-        else:
-            if self.read_called:
-                if self._include_trends:
-                    if self._include_earnings_trend:
-                        return self._earnings_trend
-                    else:
-                        raise ValueError('Earnings trend not requested.')
-                else:
-                    raise ValueError('Trends not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def industry_trend(self):
-        if self._industry_trend:
-            return self._industry_trend
-        else:
-            if self.read_called:
-                if self._include_trends:
-                    if self._include_industry_trend:
-                        return self._industry_trend
-                    else:
-                        raise ValueError('Industry trend not requested.')
-                else:
-                    raise ValueError('Trends not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def index_trend(self):
-        if self._index_trend:
-            return self._index_trend
-        else:
-            if self.read_called:
-                if self._include_trends:
-                    if self._include_index_trend:
-                        return self._index_trend
-                    else:
-                        raise ValueError('Index trend not requested.')
-                else:
-                    raise ValueError('Trends not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def sector_trend(self):
-        if self._sector_trend:
-            return self._sector_trend
-        else:
-            if self.read_called:
-                if self._include_trends:
-                    if self._include_sector_trend:
-                        return self._sector_trend
-                    else:
-                        raise ValueError('Sector trend not requested.')
-                else:
-                    raise ValueError('Trends not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def calendar_events_earnings(self):
-        if self._calendar_events_earnings:
-            return self._calendar_events_earnings
-        else:
-            if self.read_called:
-                if self._include_nonfinancials:
-                    if self._include_calendar_events:
-                        return self._calendar_events_earnings
-                    else:
-                        raise ValueError('Calendar events not requested.')
-                else:
-                    raise ValueError('Nonfinancials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def calendar_events_dividends(self):
-        if self._calendar_events_dividends:
-            return self._calendar_events_dividends
-        else:
-            if self.read_called:
-                if self._include_nonfinancials:
-                    if self._include_calendar_events:
-                        return self._calendar_events_dividends
-                    else:
-                        raise ValueError('Calendar events not requested.')
-                else:
-                    raise ValueError('Nonfinancials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def sec_filings(self):
-        if self._sec_filings:
-            return self._sec_filings
-        else:
-            if self.read_called:
-                if self._include_nonfinancials:
-                    if self._include_sec_filings:
-                        return self._sec_filings
-                    else:
-                        raise ValueError('SEC filings not requested.')
-                else:
-                    raise ValueError('Nonfinancials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def upgrade_downgrade_history(self):
-        if self._upgrade_downgrade_history:
-            return self._upgrade_downgrade_history
-        else:
-            if self.read_called:
-                if self._include_nonfinancials:
-                    if self._include_upgrade_downgrade_history:
-                        return self._upgrade_downgrade_history
-                    else:
-                        raise ValueError('Upgrade and downgrade history not requested.')
-                else:
-                    raise ValueError('Nonfinancials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
-
-    @property
-    def net_share_purchase_activity(self):
-        if self._net_share_purchase_activity:
-            return self._net_share_purchase_activity
-        else:
-            if self.read_called:
-                if self._include_nonfinancials:
-                    if self._include_net_share_purchase_activity:
-                        return self._net_share_purchase_activity
-                    else:
-                        raise ValueError('Net purchase share activity not requested.')
-                else:
-                    raise ValueError('Nonfinancials not requested.')
-            else:
-                raise RuntimeError('Read not called. No data retrieved yet.')
 
     def _check_data(self, data=None):
 
@@ -691,153 +168,106 @@ class YahooSummaryReader(BaseReader):
 
         return error
 
-    def _parse_data(self, data):
-
-        if self._include_financials:
-            self._parse_financials(data)
-
-        if self._include_holders:
-            self._parse_holders(data)
-
-        if self._include_trends:
-            self._parse_trends(data)
-
-        if self._include_nonfinancials:
-            self._parse_nonfinancials(data)
-
-    def _parse_financials(self, data):
-        module_dict = data['quoteSummary']['result'][0]
+    def _parse_data(self, data, symbol):
+        modules = data['quoteSummary']['result'][0]
+        ys = YahooSummary(symbol)
 
         if self._include_asset_profile:
-            self._profile, self._company_officers = self._parse_asset_profile_module(module_dict,
-                                                                                     'assetProfile')
+            try:
+                ys.profile, ys.company_officers = self._parse_asset_profile_module(modules, 'assetProfile')
+            except Exception as e:
+                ys.profile = None, e
+                ys.company_officers = None, e
 
         if self._include_income_statement_history:
-            self._income_statement_history = self._parse_module(module_dict,
-                                                                'incomeStatementHistory',
-                                                                'incomeStatementHistory')
+            try:
+                ys.income_statement_history = self._parse_module(modules, 'incomeStatementHistory', 'incomeStatementHistory')
+            except Exception as e:
+                ys.income_statement_history = None, e
 
         if self._include_income_statement_history_quarterly:
-            self._income_statement_history_quarterly = self._parse_module(module_dict,
-                                                                          'incomeStatementHistoryQuarterly',
-                                                                          'incomeStatementHistory')
+            ys.income_statement_history_quarterly = self._parse_module(modules, 'incomeStatementHistoryQuarterly', 'incomeStatementHistory')
 
         if self._include_balance_sheet_history:
-            self._balance_sheet_history = self._parse_module(module_dict,
-                                                            'balanceSheetHistory',
-                                                            'balanceSheetStatements')
+            ys.balance_sheet_history = self._parse_module(modules, 'balanceSheetHistory', 'balanceSheetStatements')
 
         if self._include_balance_sheet_history_quarterly:
-            self._balance_sheet_history_quarterly = self._parse_module(module_dict,
-                                                            'balanceSheetHistoryQuarterly',
-                                                            'balanceSheetStatements')
+            ys.balance_sheet_history_quarterly = self._parse_module(modules, 'balanceSheetHistoryQuarterly', 'balanceSheetStatements')
 
         if self._include_cash_flow_statement_history:
-            self._cash_flow_statement_history = self._parse_module(module_dict,
-                                                                   'cashflowStatementHistory',
-                                                                   'cashflowStatements')
+            ys.cash_flow_statement_history = self._parse_module(modules, 'cashflowStatementHistory', 'cashflowStatements')
 
         if self._include_cash_flow_statement_history_quarterly:
-            self._cash_flow_statement_history = self._parse_module(module_dict,
-                                                                   'cashflowStatementHistoryQuarterly',
-                                                                   'cashflowStatements')
+            ys.cash_flow_statement_history = self._parse_module(modules, 'cashflowStatementHistoryQuarterly', 'cashflowStatements')
 
         if self._include_earnings:
-            self._earnings_estimates, self._earnings_quarterly, \
-            self._financials_quarterly, self._financials_yearly = self._parse_module(module_dict,
-                                                                  'earnings')
+            ys.earnings_estimates, ys.earnings_quarterly, ys.financials_quarterly, ys.financials_yearly = self._parse_module(modules, 'earnings')
 
         if self._include_earnings_history:
-            self._earnings_history = self._parse_module(module_dict,
-                                                        'earningsHistory',
-                                                        'history')
+            ys.earnings_history = self._parse_module(modules, 'earningsHistory', 'history')
 
         if self._include_financial_data:
-            self._financial_data = self._parse_module(module_dict, 'financialData')
+            ys.financial_data = self._parse_module(modules, 'financialData')
 
         if self._include_default_key_statistics:
-            self._default_key_statistics = self._parse_module(module_dict,
-                                                              'defaultKeyStatistics')
-
-    def _parse_holders(self, data):
-        module_dict = data['quoteSummary']['result'][0]
+            ys.default_key_statistics = self._parse_module(modules, 'defaultKeyStatistics')
 
         if self._include_institution_ownership:
-            self._institution_ownership = self._parse_module(module_dict,
-                                                             'institutionOwnership',
-                                                             'ownershipList')
+            ys.institution_ownership = self._parse_module(modules, 'institutionOwnership', 'ownershipList')
 
         if self._include_insider_holders:
-            self._insider_holders = self._parse_module(module_dict,
-                                                       'insiderHolders',
-                                                       'holders')
+            ys.insider_holders = self._parse_module(modules, 'insiderHolders', 'holders')
 
         if self._include_insider_transactions:
-            self._insider_transactions = self._parse_module(module_dict,
-                                                            'insiderTransactions',
-                                                            'transactions')
+            ys.insider_transactions = self._parse_module(modules, 'insiderTransactions', 'transactions')
 
         if self._include_fund_ownership:
-            self._fund_ownership = self._parse_module(module_dict,
-                                                      'fundOwnership',
-                                                      'ownershipList')
+            ys.fund_ownership = self._parse_module(modules, 'fundOwnership', 'ownershipList')
 
         if self._include_major_direct_holders:
-            self._major_direct_holders = self._parse_module(module_dict,
-                                                            'majorDirectHolders',
-                                                            'holders')
+            ys.major_direct_holders = self._parse_module(modules, 'majorDirectHolders', 'holders')
 
-        if self._include_major_holders_breakdown:
-            self._major_direct_holders_breakdown = self._parse_module(module_dict,
-                                                                      'majorHoldersBreakdown')
-
-    def _parse_trends(self, data):
-        module_dict = data['quoteSummary']['result'][0]
+        if self._include_major_direct_holders_breakdown:
+            ys.major_direct_holders_breakdown = self._parse_module(modules, 'majorHoldersBreakdown')
 
         if self._include_recommendation_trend:
-            self._recommendation_trend = self._parse_module(module_dict, 'recommendationTrend', 'trend')
+            ys.recommendation_trend = self._parse_module(modules, 'recommendationTrend', 'trend')
 
         if self._include_earnings_trend:
-            self._earnings_trend = self._parse_module(module_dict, 'earningsTrend', 'trend')
+            ys.earnings_trend = self._parse_module(modules, 'earningsTrend', 'trend')
 
         if self._include_industry_trend:
-            self._industry_trend = self._parse_module(module_dict, 'industryTrend')
+            ys.industry_trend = self._parse_module(modules, 'industryTrend')
 
         if self._include_index_trend:
-            self._index_trend = self._parse_index_trend_module(module_dict, 'indexTrend')
+            ys.index_trend = self._parse_index_trend_module(modules, 'indexTrend')
 
         if self._include_sector_trend:
-            self._sector_trend = self._parse_module(module_dict, 'sectorTrend')
-
-    def _parse_nonfinancials(self, data):
-        module_dict = data['quoteSummary']['result'][0]
+            ys.sector_trend = self._parse_module(modules, 'sectorTrend')
 
         if self._include_calendar_events:
-            self._calendar_events_earnings, \
-            self._calendar_events_dividends = self._parse_calendar_events_module(module_dict, 'calendarEvents')
+            ys.calendar_events_earnings, ys.calendar_events_dividends = self._parse_calendar_events_module(modules, 'calendarEvents')
 
         if self._include_sec_filings:
-            self._sec_filings = self._parse_module(module_dict, 'secFilings', 'filings')
+            ys.sec_filings = self._parse_module(modules, 'secFilings', 'filings')
 
         if self._include_upgrade_downgrade_history:
-            self._upgrade_downgrade_history = self._parse_module(module_dict, 'upgradeDowngradeHistory', 'history')
+            ys.upgrade_downgrade_history = self._parse_module(modules, 'upgradeDowngradeHistory', 'history')
 
         if self._include_net_share_purchase_activity:
-            self._net_share_purchase_activity = self._parse_module(module_dict, 'netSharePurchaseActivity')
+            ys.net_share_purchase_activity = self._parse_module(modules, 'netSharePurchaseActivity')
 
-    def _parse_module(self, results_dict, module_name, submodule_name=None):
-        try:
-            if not submodule_name:
-                module = results_dict[module_name]
-            else:
-                module = results_dict[module_name][submodule_name]
+        return ys
 
-                module = self._format_dataframe(module)
+    def _parse_module(self, modules_dict, module_name, submodule_name=None):
+        if not submodule_name:
+            module = modules_dict[module_name]
+        else:
+            module = modules_dict[module_name][submodule_name]
 
-        except:
-            print('except')
+        module_dataframe = self._format_dataframe(module)
 
-        return module
+        return module_dataframe
 
     def _format_dataframe(self, data_dictionary):
         if isinstance(data_dictionary, list):

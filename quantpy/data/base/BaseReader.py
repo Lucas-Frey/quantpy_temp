@@ -22,7 +22,7 @@ class BaseReader(object):
         :type timeout int
         """
 
-        self.symbols = self._sanitize_symbols(symbols)
+        self.symbols = self._parse_symbols(symbols)
         self.retry_count = retry_count
         self.pause = pause
         self.timeout = timeout
@@ -49,7 +49,7 @@ class BaseReader(object):
 
         raise NotImplementedError('Subclass has not implemented property.')
 
-    def _sanitize_symbols(self, symbols):
+    def _parse_symbols(self, symbols):
         """
         Symbols can be a string or a list. It will turn them into a list.
         :param symbols: A list of the str symbols.
@@ -61,12 +61,12 @@ class BaseReader(object):
 
         return symbols
 
-    def _sanitize_data(self, data):
+    def _parse_response(self, data, symbol):
         try:
-            data = self._parse_data(data)
+            data = self._parse_data(data, symbol)
 
         except Exception as e:
-            data = self._check_data(data)
+            data = self._check_data(data, symbol)
 
         return data
 
@@ -164,7 +164,7 @@ class BaseReader(object):
                                     params=self._params,
                                     timeout=self.timeout)
 
-                data_dict = {symbol: self._sanitize_data(data.json())}
+                data_dict = {symbol: self._parse_response(data.json(), symbol)}
 
         except Timeout as to:
             # Catches a Timeout exception if a symbols information took to long.
