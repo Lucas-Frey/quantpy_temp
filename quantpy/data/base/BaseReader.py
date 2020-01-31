@@ -22,11 +22,11 @@ class BaseReader(object):
         :type timeout int
         """
 
-        self.symbols = self._parse_symbols(symbols)
-        self.retry_count = retry_count
-        self.pause = pause
-        self.timeout = timeout
-        self.read_called = False
+        self._symbols = self._parse_symbols(symbols)
+        self._retry_count = retry_count
+        self._pause = pause
+        self._timeout = timeout
+        self._read_called = False
 
     @property
     @abc.abstractmethod
@@ -49,6 +49,28 @@ class BaseReader(object):
 
         raise NotImplementedError('Subclass has not implemented property.')
 
+    @abc.abstractmethod
+    def _check_data(self, symbol, data):
+        """
+        Method to check the data for errors. Must be implemented by a subclass.
+        :return: The sanitized data.
+        """
+
+        raise NotImplementedError('Subclass has not implemented property.')
+
+    @abc.abstractmethod
+    def _parse_data(self, symbol, data):
+        """
+        Method to check the data for errors. Must be implemented by a subclass.
+        :return: The sanitized data.
+        """
+
+        raise NotImplementedError('Subclass has not implemented property.')
+
+    @abc.abstractmethod
+    def _handle_read_exception(self, symbol, exception):
+        raise NotImplementedError('Subclass has not implemented property.')
+
     def _parse_symbols(self, symbols):
         """
         Symbols can be a string or a list. It will turn them into a list.
@@ -61,7 +83,7 @@ class BaseReader(object):
 
         return symbols
 
-    def _parse_response(self, data, symbol):
+    def _parse_response(self, symbol, data):
         try:
             data = self._parse_data(data, symbol)
 
@@ -70,24 +92,6 @@ class BaseReader(object):
 
         return data
 
-    @abc.abstractmethod
-    def _check_data(self, data):
-        """
-        Method to check the data for errors. Must be implemented by a subclass.
-        :return: The sanitized data.
-        """
-
-        raise NotImplementedError('Subclass has not implemented property.')
-
-    @abc.abstractmethod
-    def _parse_data(self, data):
-        """
-        Method to check the data for errors. Must be implemented by a subclass.
-        :return: The sanitized data.
-        """
-
-        raise NotImplementedError('Subclass has not implemented property.')
-
     def read(self):
         """
         Function to read the requested data.
@@ -95,27 +99,26 @@ class BaseReader(object):
         :rtype dict
         """
 
-        if len(self.symbols) > 1:
+        if len(self._symbols) > 1:
             # If more than one symbol requested, then do a multiprocess read.
-            symbol_dict, times = self.multi_read()
+            symbol_dict = self.multi_read()
         else:
             # If only one symbol requested, then do a single read.
-            symbol_dict, times = self.single_read(self.symbols[0])
+            symbol_dict= self.single_read(self._symbols[0])
 
-        self.read_called = True
+        self._read_called = True
 
-        return symbol_dict, times
+        return symbol_dict
 
     def multi_read(self):
         symbol_json_dict = {}
-        times = {}
         session = requests.Session()
 
         with ProcessPool(multiprocessing.cpu_count()) as pool:
             # Gets a ProcessMapFuture object using the ProcessPool's .map method.
             # The .map method completes the processes asynchronously.
             results = pool.map(self.single_read_wrapper,
-                               zip(self.symbols, itertools.repeat(session)))
+                               zip(self._symbols, itertools.repeat(session)))
 
             # Gets an iterator from the ProcessPool's .map method result.
             results_interator = results.result()
@@ -129,14 +132,14 @@ class BaseReader(object):
 
                     # Appends it to the symbol tuple list.
                     symbol_json_dict.update(symbol_data[0])
-                    times.update(symbol_data[1])
+
                 except StopIteration:
                     # Iterators throw a StopIteration exception when they are done.
                     break
 
         session.close()
 
-        return symbol_json_dict, times
+        return symbol_json_dict
 
     def single_read(self, symbol, session=None):
         """
@@ -150,31 +153,30 @@ class BaseReader(object):
         :rtype dict
         """
 
-        cur = time.time()
-
         try:
             if session:
                 # If using a session, then send the request using the session.
                 data = session.get(url=self._url.format(symbol),
                                    params=self._params,
-                                   timeout=self.timeout)
+                                   timeout=self._timeout)
             else:
                 # If not using a session, then use requests to send the request.
                 data = requests.get(url=self._url.format(symbol),
                                     params=self._params,
-                                    timeout=self.timeout)
+                                    timeout=self._timeout)
 
-                data_dict = {symbol: self._parse_response(data.json(), symbol)}
+            parsed_data = self._parse_response(data, symbol)
+            return parsed_data
 
         except Timeout as to:
             # Catches a Timeout exception if a symbols information took to long.
-            data_dict = {symbol: to}
+            exception_data = self._handle_read_exception(symbol, to)
+            return exception_data
 
         except Exception as e:
             # Catches all other errors related to getting the information.
-            data_dict = {symbol: e}
-
-        return data_dict, {symbol: round(time.time() - cur, 2)}
+            exception_data = self._handle_read_exception(symbol, e)
+            return exception_data
 
     def single_read_wrapper(self, arguments):
         return self.single_read(*arguments)

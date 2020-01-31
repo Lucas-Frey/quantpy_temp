@@ -1,11 +1,12 @@
 import datetime
 import time
+import warnings
 import pandas as pd
-from quantpy.data.base.BaseQuoteReader import BaseQuoteReader
-import quantpy.data.yahoo.YahooExceptions as YahooExceptions
+import data.data.yahoo.YahooExceptions as YahooExceptions
+from data.data import BaseReader
 
 
-class YahooQuoteReader(BaseQuoteReader):
+class YahooQuoteReader(BaseReader):
 
     def __init__(self, symbols, start=None, end=None, interval='1d', events=False,
                  pre_post=True, retry_count=3, pause=0.1, timeout=2):
@@ -31,15 +32,15 @@ class YahooQuoteReader(BaseQuoteReader):
 
         # Since symbols, start, and end can be input in a variety of forms, they
         # are formatted to be complacent with the API request.
-        symbols = self._parse_symbols(symbols)
-        start, end = self._sanitize_dates(start, end)
+        self.__symbols = self._parse_symbols(symbols)
+        self.__start, self.__end = self.__sanitize_dates(start, end)
+        self.__interval = interval
 
-        self.events = events
-        self.pre_post = pre_post
+        self.__events = events
+        self.__pre_post = pre_post
 
         # Call the super class' constructor.
-        super().__init__(symbols, start, end, interval, retry_count, pause,
-                         timeout)
+        super().__init__(symbols, retry_count, pause, timeout)
 
     @property
     def _url(self):
@@ -56,17 +57,17 @@ class YahooQuoteReader(BaseQuoteReader):
         :return: A dictionary of parameters. This is called after sanitization.
         :rtype dict
         """
-        if self.events:
+        if self.__events:
             events_param = 'div,splits'
         else:
             events_param = ''
 
-        return {'period1': self.start, 'period2': self.end,
-                'interval': self.interval, 'includePrePost': self.pre_post,
+        return {'period1': self.__start, 'period2': self.__end,
+                'interval': self.__interval, 'includePrePost': self.__pre_post,
                 'events': events_param}
 
     @property
-    def _default_start_date(self):
+    def __default_start_date(self):
         """
         Method to get the default unix start date (January 1st, 1900). Note,
         this date will be negative.
@@ -74,14 +75,14 @@ class YahooQuoteReader(BaseQuoteReader):
         return int(time.mktime(datetime.datetime(1970, 1, 1).timetuple()))
 
     @property
-    def _default_end_date(self):
+    def __default_end_date(self):
         """
         Method to get the default unix end date (Today).
         """
 
         return int(time.mktime(datetime.datetime.now().timetuple()))
 
-    def _sanitize_dates(self, start=None, end=None):
+    def __sanitize_dates(self, start=None, end=None):
         """
         Function to parse the dates into unix format.
         :param start: The start date of the historical data range.
@@ -93,7 +94,7 @@ class YahooQuoteReader(BaseQuoteReader):
         if not isinstance(start, int):
             if not start:
                 # If no start date specified, then set it to the default value.
-                start = self._default_start_date
+                start = self.__default_start_date
             elif isinstance(start, datetime.datetime):
                 # If start date is a datetime object, then convert it to unix.
                 start = start.timestamp()
@@ -104,7 +105,7 @@ class YahooQuoteReader(BaseQuoteReader):
         if not isinstance(end, int):
             if not end:
                 # If no end date specified, then set it to the default value.
-                end = self._default_end_date
+                end = self.__default_end_date
             elif isinstance(end, datetime.datetime):
                 # If end date is a datetime object, then convert it to unix.
                 end = end.timestamp()
@@ -114,12 +115,12 @@ class YahooQuoteReader(BaseQuoteReader):
 
         return start, end
 
-    def _organize_data(self, data=None):
-        quote_data = self._organize_quote_data(data)
+    def _parse_data(self, symbol, data=None):
+        quote_data = self.__parse_quote_data(data)
 
-        if self.events:
-            dividends_data = self._organize_events_data(data, 'dividends')
-            splits_data = self._organize_events_data(data, 'splits')
+        if self.__events:
+            dividends_data = self.__parse_events_data(data, 'dividends')
+            splits_data = self.__parse_events_data(data, 'splits')
 
         else:
             dividends_data = None
@@ -127,7 +128,7 @@ class YahooQuoteReader(BaseQuoteReader):
 
         return quote_data, dividends_data, splits_data
 
-    def _organize_quote_data(self, data):
+    def __parse_quote_data(self, data):
         # Get the open, high, low, close, volume (OHLCV) data from the JSON.
         ohlcv_data = data['chart']['result'][0]['indicators']['quote'][0]
 
@@ -152,7 +153,7 @@ class YahooQuoteReader(BaseQuoteReader):
                                                 'low', 'close',
                                                 'adjclose', 'volume'])
 
-    def _organize_events_data(self, data, event_type=None):
+    def __parse_events_data(self, data, event_type=None):
         # Get the splits dictionary from the JSON API output.
         event_dict = data['chart']['result'][0]['events'][event_type]
 
@@ -166,7 +167,7 @@ class YahooQuoteReader(BaseQuoteReader):
 
         return event_dataframe
 
-    def _check_data(self, data=None):
+    def _check_data(self, symbol, data=None):
 
         if 'Will be right back' in data.text:
             error = YahooExceptions.YahooRuntimeError('Yahoo Finance is currently down.')
@@ -181,3 +182,83 @@ class YahooQuoteReader(BaseQuoteReader):
             error = YahooExceptions.YahooError('An error occurred in Yahoo\'s response.')
 
         return error
+
+    def _handle_read_exception(self, symbol, exception):
+        return YahooQuoteReader.YahooQuote(symbol, exception)
+
+    class YahooQuote:
+
+        class QuoteObject:
+
+            def __init__(self):
+                self._included = False
+                self._value = None
+                self._error_occurred = False
+                self._error = None
+
+            @property
+            def value(self):
+                return self._value
+
+            @value.setter
+            def value(self, value):
+                self._included = True
+                self._value = value
+
+            @property
+            def included(self):
+                return self._included
+
+            @property
+            def error(self):
+                return self._error
+
+            @error.setter
+            def error(self, value):
+                self._error_occurred = True
+                _error = value
+
+            @property
+            def error_occurred(self):
+                return self._error_occurred
+
+        def __init__(self, symbol, exception):
+            self.__quote = None
+
+            self.__symbol = symbol
+            self._exception = exception
+
+        @property
+        def symbol(self):
+            return self.__symbol
+
+        @property
+        def quote(self):
+            return self.__handle_read_quote(self.__quote)
+
+        @quote.setter
+        def quote(self, value, error=None):
+            self.__handle_write_quote(value, error)
+
+        def __handle_read_quote(self, summary_object):
+            if summary_object:
+                if summary_object.included:
+                    return summary_object.value
+                else:
+                    return None
+            else:
+                warnings.warn('The value referenced and was never assigned.')
+                return None
+
+        def __handle_write_quote(self, value, error):
+            summary_object = YahooQuoteReader.YahooQuote.QuoteObject()
+
+            if value and error:
+                raise ValueError('Cannot assign both a value and an error.')
+            else:
+                if value and not error:
+                    summary_object.value = value
+                else:
+                    summary_object.error = error
+
+            return summary_object
