@@ -1,8 +1,8 @@
-from data.data import BaseReader
+from quantpy.data.base.BaseReader import BaseReader
 import pandas as pd
 import collections
 
-import data.data.yahoo.YahooExceptions as YahooExceptions
+import quantpy.data.yahoo.YahooExceptions as YahooExceptions
 import re
 import warnings
 
@@ -46,7 +46,7 @@ class YahooSummaryReader(BaseReader):
         self.__include_balance_sheet_history_quarterly = include_all or include_balance_sheet_history_quarterly
         self.__include_cash_flow_statement_history = include_all or include_cash_flow_statement_history
         self.__include_cash_flow_statement_history_quarterly = include_all or include_cash_flow_statement_history_quarterly
-        self.__include_earnings = include_earnings
+        self.__include_earnings = include_earnings or include_all
         self.__include_earnings_history = include_all or include_earnings_history
         self.__include_financial_data = include_all or include_financial_data
         self.__include_default_key_statistics = include_all or include_default_key_statistics
@@ -142,13 +142,13 @@ class YahooSummaryReader(BaseReader):
             modules_list += 'sectorTrend,'
 
         if self.__include_calendar_events:
-            modules_list += 'calendarEvents'
+            modules_list += 'calendarEvents,'
         if self.__include_sec_filings:
-            modules_list += 'secFilings'
+            modules_list += 'secFilings,'
         if self.__include_upgrade_downgrade_history:
-            modules_list += 'upgradeDowngradeHistory'
+            modules_list += 'upgradeDowngradeHistory,'
         if self.__include_net_share_purchase_activity:
-            modules_list += 'netSharePurchaseActivity'
+            modules_list += 'netSharePurchaseActivity,'
 
         return {'modules': modules_list}
 
@@ -217,7 +217,7 @@ class YahooSummaryReader(BaseReader):
 
         if self.__include_earnings:
             try:
-                ys.earnings_estimates, ys.earnings_quarterly, ys.financials_quarterly, ys.financials_yearly = self.__parse_module(modules, 'earnings')
+                ys.earnings_estimates, ys.earnings_quarterly, ys.financials_quarterly, ys.financials_yearly = self.__parse_earnings_module(modules, 'earnings')
             except Exception as e:
                 ys.earnings_estimates = None, e
                 ys.earnings_quarterly = None, e
@@ -391,8 +391,8 @@ class YahooSummaryReader(BaseReader):
             earnings_estimates = self.__format_dataframe(earnings_estimates)
             earnings_quarterly = self.__format_dataframe(earnings_quarterly)
 
-            financial_yearly = module['financialData']['yearly']
-            financial_quarterly = module['financialData']['quarterly']
+            financial_yearly = module['financialsChart']['yearly']
+            financial_quarterly = module['financialsChart']['quarterly']
 
             financial_yearly = self.__format_dataframe(financial_yearly)
             financial_quarterly = self.__format_dataframe(financial_quarterly)
@@ -690,7 +690,7 @@ class YahooSummaryReader(BaseReader):
 
         @major_direct_holders.setter
         def major_direct_holders(self, value, error=None):
-            self.major_direct_holders = self._handle_write_summary(value, error)
+            self._major_direct_holders = self._handle_write_summary(value, error)
 
         @property
         def major_direct_holders_breakdown(self):
@@ -807,10 +807,10 @@ class YahooSummaryReader(BaseReader):
         def _handle_write_summary(self, value, error):
             summary_object = YahooSummaryReader.YahooSummary.SummaryObject()
 
-            if value and error:
+            if value is not None and error is not None:
                 raise ValueError('Cannot assign both a value and an error.')
             else:
-                if value and not error:
+                if value is not None:
                     summary_object.value = value
                 else:
                     summary_object.error = error

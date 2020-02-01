@@ -2,8 +2,8 @@ import datetime
 import time
 import warnings
 import pandas as pd
-import data.data.yahoo.YahooExceptions as YahooExceptions
-from data.data import BaseReader
+import quantpy.data.yahoo.YahooExceptions as YahooExceptions
+from quantpy.data.base.BaseReader import BaseReader
 
 
 class YahooQuoteReader(BaseReader):

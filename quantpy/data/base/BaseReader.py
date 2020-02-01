@@ -85,10 +85,10 @@ class BaseReader(object):
 
     def _parse_response(self, symbol, data):
         try:
-            data = self._parse_data(data, symbol)
+            data = self._parse_data(symbol, data)
 
         except Exception as e:
-            data = self._check_data(data, symbol)
+            data = self._check_data(symbol, data)
 
         return data
 
@@ -104,7 +104,7 @@ class BaseReader(object):
             symbol_dict = self.multi_read()
         else:
             # If only one symbol requested, then do a single read.
-            symbol_dict= self.single_read(self._symbols[0])
+            symbol_dict = self.single_read(self._symbols[0])
 
         self._read_called = True
 
@@ -165,7 +165,7 @@ class BaseReader(object):
                                     params=self._params,
                                     timeout=self._timeout)
 
-            parsed_data = self._parse_response(data, symbol)
+            parsed_data = self._parse_response(symbol, data.json())
             return parsed_data
 
         except Timeout as to:
