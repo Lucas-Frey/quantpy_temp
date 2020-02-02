@@ -1,6 +1,6 @@
 from quantpy.data.base.BaseReader import BaseReader
 import pandas as pd
-import collections
+from collections import MutableMapping
 
 import quantpy.data.yahoo.YahooExceptions as YahooExceptions
 import re
@@ -10,7 +10,6 @@ import warnings
 class YahooSummaryReader(BaseReader):
 
     def __init__(self, symbols,
-                 include_all=True,
                  include_asset_profile=False,
                  include_income_statement_history=False,
                  include_income_statement_history_quarterly=False,
@@ -27,7 +26,7 @@ class YahooSummaryReader(BaseReader):
                  include_insider_transactions=False,
                  include_fund_ownership=False,
                  include_major_direct_holders=False,
-                 include_major_holders_breakdown=False,
+                 include_major_direct_holders_breakdown=False,
                  include_recommendation_trend=False,
                  include_earnings_trend=False,
                  include_industry_trend=False,
@@ -37,6 +36,7 @@ class YahooSummaryReader(BaseReader):
                  include_sec_filings=False,
                  include_upgrade_downgrade_history=False,
                  include_net_share_purchase_activity=False,
+                 include_all=False,
                  retry_count=3, pause=0.1, timeout=5):
 
         self.__include_asset_profile = include_all or include_asset_profile
@@ -56,7 +56,7 @@ class YahooSummaryReader(BaseReader):
         self.__include_insider_transactions = include_all or include_insider_transactions
         self.__include_fund_ownership = include_all or include_fund_ownership
         self.__include_major_direct_holders = include_all or include_major_direct_holders
-        self.__include_major_direct_holders_breakdown = include_all or include_major_holders_breakdown
+        self.__include_major_direct_holders_breakdown = include_all or include_major_direct_holders_breakdown
 
         self.__include_recommendation_trend = include_all or include_recommendation_trend
         self.__include_earnings_trend = include_all or include_earnings_trend
@@ -152,21 +152,48 @@ class YahooSummaryReader(BaseReader):
 
         return {'modules': modules_list}
 
+    def _check_init_args(self):
+        if not (self.__include_asset_profile or
+                self.__include_income_statement_history or
+                self.__include_income_statement_history_quarterly or
+                self.__include_balance_sheet_history or
+                self.__include_balance_sheet_history_quarterly or
+                self.__include_cash_flow_statement_history or
+                self.__include_cash_flow_statement_history_quarterly or
+                self.__include_earnings or
+                self.__include_earnings_history or
+                self.__include_financial_data or
+                self.__include_default_key_statistics or
+                self.__include_institution_ownership or
+                self.__include_insider_holders or
+                self.__include_insider_transactions or
+                self.__include_fund_ownership or
+                self.__include_major_direct_holders or
+                self.__include_major_direct_holders_breakdown or
+                self.__include_recommendation_trend or
+                self.__include_earnings_trend or
+                self.__include_industry_trend or
+                self.__include_index_trend or
+                self.__include_sector_trend or
+                self.__include_calendar_events or
+                self.__include_sec_filings or
+                self.__include_upgrade_downgrade_history or
+                self.__include_net_share_purchase_activity):
+            raise ValueError('Did not specify any summary values to get.')
+
     def _check_data(self, symbol, data=None):
 
         if 'Will be right back' in data.text:
-            error = YahooExceptions.YahooRuntimeError('Yahoo Finance is currently down.')
-
-        elif data.json()['quoteSummary']['error']:
-            error = YahooExceptions.YahooRequestError(str(data.json()['chart']['error']['description']))
-
-        elif not data.json()['quoteSummary'] or not data['quoteSummary']['result']:
-            error = YahooExceptions.YahooRequestError('No data')
-
+            return YahooSummaryReader.YahooSummary(symbol,
+                                                   exception=YahooExceptions.YahooRuntimeError('Yahoo Finance is currently down.'))
         else:
-            error = YahooExceptions.YahooError('An error occurred in Yahoo\'s response.')
-
-        return error
+            data_json = data.json()
+            if data_json['quoteSummary']['result'] is None and data_json['quoteSummary']['error'] is not None:
+                return YahooSummaryReader.YahooSummary(symbol,
+                                                       exception=data_json['quoteSummary']['error']['description'])
+            else:
+                return YahooSummaryReader.YahooSummary(symbol,
+                                                       exception=data_json)
 
     def _parse_data(self, symbol, data):
         modules = data['quoteSummary']['result'][0]
@@ -217,10 +244,10 @@ class YahooSummaryReader(BaseReader):
 
         if self.__include_earnings:
             try:
-                ys.earnings_estimates, ys.earnings_quarterly, ys.financials_quarterly, ys.financials_yearly = self.__parse_earnings_module(modules, 'earnings')
+                ys.earnings_estimates, ys.earnings_estimates_quarterly, ys.financials_quarterly, ys.financials_yearly = self.__parse_earnings_module(modules, 'earnings')
             except Exception as e:
                 ys.earnings_estimates = None, e
-                ys.earnings_quarterly = None, e
+                ys.earnings_estimates_quarterly = None, e
                 ys.financials_quarterly = None, e
                 ys.financials_yearly = None, e
 
@@ -298,7 +325,7 @@ class YahooSummaryReader(BaseReader):
 
         if self.__include_index_trend:
             try:
-                ys.index_trend = self.__parse_index_trend_module(modules, 'indexTrend')
+                ys.index_trend_info, ys.index_trend_estimate = self.__parse_index_trend_module(modules, 'indexTrend')
             except Exception as e:
                 ys.index_trend = None, e
 
@@ -442,7 +469,7 @@ class YahooSummaryReader(BaseReader):
         items = []
         for k, v in d.items():
             new_key = parent_key + sep + k if parent_key else k
-            if isinstance(v, collections.MutableMapping):
+            if isinstance(v, MutableMapping):
                 items.extend(self.flatten(v, new_key, sep=sep).items())
             else:
                 items.append((new_key, v))
@@ -690,7 +717,7 @@ class YahooSummaryReader(BaseReader):
 
         @major_direct_holders.setter
         def major_direct_holders(self, value, error=None):
-            self._major_direct_holders = self._handle_write_summary(value, error)
+            self.__major_direct_holders = self._handle_write_summary(value, error)
 
         @property
         def major_direct_holders_breakdown(self):
@@ -789,7 +816,7 @@ class YahooSummaryReader(BaseReader):
             self.__net_share_purchase_activity = self._handle_write_summary(value, error)
 
         def _handle_read_summary(self, summary_object):
-            if not self.__exception:
+            if self.__exception is None:
                 if summary_object:
                     if summary_object.included:
                         return summary_object.value
@@ -801,7 +828,7 @@ class YahooSummaryReader(BaseReader):
                     warnings.warn('The value referenced and was never assigned.')
                     return None
             else:
-                warnings.warn(self.__exception)
+                warnings.warn(str(self.__exception))
                 return None
 
         def _handle_write_summary(self, value, error):

@@ -59,6 +59,15 @@ class BaseReader(object):
         raise NotImplementedError('Subclass has not implemented property.')
 
     @abc.abstractmethod
+    def _check_init_args(self):
+        """
+        Method to check that the init args are in a proper configuration. Must be implemented by a subclass.
+        :return: The sanitized data.
+        """
+
+        raise NotImplementedError('Subclass has not implemented property.')
+
+    @abc.abstractmethod
     def _parse_data(self, symbol, data):
         """
         Method to check the data for errors. Must be implemented by a subclass.
@@ -85,7 +94,7 @@ class BaseReader(object):
 
     def _parse_response(self, symbol, data):
         try:
-            data = self._parse_data(symbol, data)
+            data = self._parse_data(symbol, data.json())
 
         except Exception as e:
             data = self._check_data(symbol, data)
@@ -95,20 +104,22 @@ class BaseReader(object):
     def read(self):
         """
         Function to read the requested data.
-        :return: symbol_dict a dictionary mapping symbols to their data.
+        :return: symbol_data a dictionary mapping symbols to their data.
         :rtype dict
         """
 
+        self._check_init_args()
+
         if len(self._symbols) > 1:
             # If more than one symbol requested, then do a multiprocess read.
-            symbol_dict = self.multi_read()
+            symbol_data = self.multi_read()
         else:
             # If only one symbol requested, then do a single read.
-            symbol_dict = self.single_read(self._symbols[0])
+            symbol_data = self.single_read(self._symbols[0])
 
         self._read_called = True
 
-        return symbol_dict
+        return symbol_data
 
     def multi_read(self):
         symbol_json_dict = {}
@@ -165,7 +176,8 @@ class BaseReader(object):
                                     params=self._params,
                                     timeout=self._timeout)
 
-            parsed_data = self._parse_response(symbol, data.json())
+            parsed_data = self._parse_response(symbol, data)
+
             return parsed_data
 
         except Timeout as to:

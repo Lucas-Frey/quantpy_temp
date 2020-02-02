@@ -62,7 +62,7 @@ def get_yahoo_insiders(symbols, include_insiders=True, include_insider_transacti
 def get_yahoo_major_holders(symbols, include_major_holders=True, include_breakdown=False):
     return YahooSummaryReader(symbols,
                               include_major_direct_holders=include_major_holders,
-                              include_major_holders_breakdown=include_breakdown).read()
+                              include_major_direct_holders_breakdown=include_breakdown).read()
 
 
 def get_yahoo_trends(symbols, include_recommendation=True, include_industry=False,
