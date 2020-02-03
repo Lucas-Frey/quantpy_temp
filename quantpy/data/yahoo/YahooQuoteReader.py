@@ -116,7 +116,7 @@ class YahooQuoteReader(BaseReader):
 
         return start, end
 
-    def _parse_data(self, symbol, data=None):
+    def _parse_response(self, symbol, data=None):
         quote_data = self.__parse_quote_data(data)
 
         if self.__events:

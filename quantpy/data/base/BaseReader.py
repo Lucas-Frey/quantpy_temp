@@ -14,15 +14,13 @@ class BaseReader(object):
         Initializer method for the BaseReader class.
         :param symbols: The list of symbols to be used.
         :type symbols: str
-        :param retry_count: Optional. The amount of times to retry an api call.
-        :type retry_count int
-        :param pause: Optional. The amount of time to pause between retries.
-        :type pause float
-        :param timeout: Optional. The amount of time until a request times out.
-        :type timeout int
+        :param timeout: The amount of time until a request times out.
+        :type timeout: float
         """
 
+        # Parse the symbols. They'll need to be in a list form.
         self._symbols = self._parse_symbols(symbols)
+
         self._timeout = timeout
         self._read_called = False
 
@@ -30,21 +28,24 @@ class BaseReader(object):
     @abc.abstractmethod
     def _url(self):
         """
-        Method to get the url of the API endpoint. Needs to be implemented in
-        a subclass.
+        Property that is the specified url for the API endpoint. Note, the url needs to be formattable.
+        :return: The formattable url string.
+        :rtype: str
         """
 
+        # Raise this since this is an abstract property.
         raise NotImplementedError('Subclass has not implemented property.')
 
     @property
     @abc.abstractmethod
     def _params(self):
         """
-        Method to get the parameters for the API endpoint. Needs to be
-        implemented in a subclass.
-        :return:
+        Property to get the parameters for a certain API endpoint.
+        :return: The formatted API parameters.
+        :rtype: dict
         """
 
+        # Raise this since this is an abstract method.
         raise NotImplementedError('Subclass has not implemented property.')
 
     @abc.abstractmethod
@@ -66,7 +67,7 @@ class BaseReader(object):
         raise NotImplementedError('Subclass has not implemented property.')
 
     @abc.abstractmethod
-    def _parse_data(self, symbol, data):
+    def _parse_response(self, symbol, data):
         """
         Method to check the data for errors. Must be implemented by a subclass.
         :return: The sanitized data.
@@ -75,7 +76,12 @@ class BaseReader(object):
         raise NotImplementedError('Subclass has not implemented property.')
 
     @abc.abstractmethod
-    def _handle_read_exception(self, symbol, exception):
+    def _parse_response_error(self, symbol, error):
+        """
+        Method to check the data for errors. Must be implemented by a subclass.
+        :return: The sanitized data.
+        """
+
         raise NotImplementedError('Subclass has not implemented property.')
 
     def _parse_symbols(self, symbols):
@@ -89,15 +95,6 @@ class BaseReader(object):
             symbols = symbols.split(' ')
 
         return symbols
-
-    def _parse_response(self, symbol, data):
-        try:
-            data = self._parse_data(symbol, data.json())
-
-        except Exception as e:
-            data = self._check_data(symbol, data)
-
-        return data
 
     def read(self):
         """
@@ -153,40 +150,33 @@ class BaseReader(object):
     def single_read(self, symbol, session=None):
         """
         Function to read a single symbol from the requested url and sanitize the
-        data from the request.
+        reponse from the request.
         :param symbol: The symbol being requested.
         :type symbol str
         :param session: The session to be used when requesting. Default is None.
         :type requests.Session()
-        :return: A dictionary mapping the symbol to its data.
+        :return: A dictionary mapping the symbol to its response.
         :rtype dict
         """
 
         try:
             if session:
                 # If using a session, then send the request using the session.
-                data = session.get(url=self._url.format(symbol),
-                                   params=self._params,
-                                   timeout=self._timeout)
+                response = session.get(url=self._url.format(symbol),
+                                       params=self._params,
+                                       timeout=self._timeout)
             else:
                 # If not using a session, then use requests to send the request.
-                data = requests.get(url=self._url.format(symbol),
-                                    params=self._params,
-                                    timeout=self._timeout)
+                response = requests.get(url=self._url.format(symbol),
+                                        params=self._params,
+                                        timeout=self._timeout)
 
-            parsed_data = self._parse_response(symbol, data)
+            # Parse the response.
+            return self._parse_response(symbol, response.json())
 
-            return parsed_data
-
-        except Timeout as to:
-            # Catches a Timeout exception if a symbols information took to long.
-            exception_data = self._handle_read_exception(symbol, to)
-            return exception_data
-
-        except Exception as e:
+        except Exception as response_error:
             # Catches all other errors related to getting the information.
-            exception_data = self._handle_read_exception(symbol, e)
-            return exception_data
+            return self._parse_response_error(symbol, response_error)
 
     def single_read_wrapper(self, arguments):
         return self.single_read(*arguments)

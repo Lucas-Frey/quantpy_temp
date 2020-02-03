@@ -5,6 +5,16 @@ import warnings
 class YahooSummaryResponse(BaseResponse):
 
     def __init__(self, symbol, exception=None):
+        """
+        Constructor for the YahooSummaryReponse class. It will set all the class attributes to None and call the
+        super class's constructor.
+        :param symbol: The company(s) for which summary response is for.
+        :type symbol: Union[str, list]
+        :param exception: The exception that occurred when communicating with the Yahoo Finance API.
+        :type exception: str
+        """
+
+        # Set all the financial summary objects to None.
         self.__profile = None
         self.__company_officers = None
         self.__income_statement_history = None
@@ -21,6 +31,7 @@ class YahooSummaryResponse(BaseResponse):
         self.__financial_data = None
         self.__default_key_statistics = None
 
+        # Set all holders summary objects to None.
         self.__institution_ownership = None
         self.__insider_holders = None
         self.__insider_transactions = None
@@ -28,6 +39,7 @@ class YahooSummaryResponse(BaseResponse):
         self.__major_direct_holders = None
         self.__major_direct_holders_breakdown = None
 
+        # Set all trend summary objects to None
         self.__recommendation_trend = None
         self.__earnings_trend = None
         self.__industry_trend = None
@@ -35,38 +47,72 @@ class YahooSummaryResponse(BaseResponse):
         self.__index_trend_estimate = None
         self.__sector_trend = None
 
+        # Set all non-financial summary objects to None.
         self.__calendar_events_earnings = None
         self.__calendar_events_dividends = None
         self.__sec_filings = None
         self.__upgrade_downgrade_history = None
         self.__net_share_purchase_activity = None
 
+        # Call the super class's constructor.
         super().__init__(symbol=symbol, exception=exception)
 
     def _handle_read(self, summary_object):
+        """
+        Method to handle when a YahooSummaryReponse property is read (get).
+        :param summary_object: The summary object attempting to be read from.
+        :return: The value of the property found within the summary object.
+        :rtype Pandas.Dataframe.
+        """
+
+        # Check to see if there were any read errors assigned to the class.
         if self._exception is None:
-            if summary_object:
+
+            # Check to see if the property was ever instantiation.
+            if summary_object is not None:
+
+                # Check to see if the property data was included.
                 if summary_object.included:
                     return summary_object.value
+
+                # Check to see if the property data had an error.
                 elif summary_object.error_occurred:
                     raise Exception(summary_object.error)
+
+                # If neither just return None.
                 else:
                     return None
             else:
+                # The property was never written to before trying to read from it.
                 warnings.warn('The value referenced and was never assigned.')
                 return None
         else:
+            # There was a read exception raised when reading from the API.
             warnings.warn(str(self._exception))
             return None
 
     def _handle_write(self, value, error):
+        """
+        Method to handle when a YahooSummaryResponse object is written to.
+        :param value: The value to assign to the property
+        :param error: A potential error associated with the value.
+        :return: A summary object containin the data.
+        :rtype BaseReponse.SummaryObject.
+        """
+
+        # Instantiate the summary object.
         summary_object = self.SummaryObject()
 
+        # Check to see that either a value or an error was passed.
         if value is not None and error is not None:
             raise ValueError('Cannot assign both a value and an error.')
+
         else:
+            # Assigned the value.
             if value is not None:
                 summary_object.value = value
+
+            # Assign the error.
             else:
                 summary_object.error = error
 
@@ -77,7 +123,7 @@ class YahooSummaryResponse(BaseResponse):
         return self._handle_read(self.__profile)
 
     @profile.setter
-    def profile(self, value=None, error=None):
+    def profile(self, value, error=None):
         self.__profile = self._handle_write(value, error)
 
     @property

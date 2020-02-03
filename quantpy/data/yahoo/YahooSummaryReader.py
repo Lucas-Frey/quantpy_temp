@@ -37,7 +37,7 @@ class YahooSummaryReader(BaseReader):
                  include_upgrade_downgrade_history=False,
                  include_net_share_purchase_activity=False,
                  include_all=False,
-                 timeout=5):
+                 timeout=5.0):
         """
         Constructor for the YahooSummaryReader class to read copmany summaries from the Yahoo Finance API.
         :param symbols: The company(s) for which summaries are to be retrieved.
@@ -138,7 +138,7 @@ class YahooSummaryReader(BaseReader):
         # Set the pattern used to define the response dataframe schema formatting.
         self.__pep_pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
-        # Call the super class' constructor.
+        # Call the super class's constructor.
         super().__init__(symbols=symbols, timeout=timeout)
 
     @property
@@ -271,7 +271,18 @@ class YahooSummaryReader(BaseReader):
             else:
                 return YahooSummaryResponse(symbol, exception=data_json)
 
-    def _parse_data(self, symbol, response_data):
+    def _parse_response_error(self, symbol, exception):
+        """
+        Overridden method to handle exception raised from readed the Yahoo Finance API response.
+        :param symbol: The symbol of the company for which the data is being parsed.
+        :type symbol: str
+        :param exception: The exception that occured when reading from the Yahoo Finance API reponse.
+        :return: An empty YahooSummaryReponse object containing the exception.
+        :rtype: YahooSummaryResponse
+        """
+        return YahooSummaryResponse(symbol, exception)
+
+    def _parse_response(self, symbol, response_data):
         """
         Overridden method to parse through the data revieved from the API call. It will get the list of modules and then
         it will parse the modules that were requested.
@@ -283,15 +294,12 @@ class YahooSummaryReader(BaseReader):
         :rtype: YahooSummaryResponse
         """
 
-        # Instantiate the YahooSummaryResponse object.
-        ys = YahooSummaryResponse(symbol)
-
         # Get the modules dictionary from the unformatted JSON dictionary. Note, if the modules dictionary is not found,
         # this will raise an error.
         try:
             modules = response_data['quoteSummary']['result'][0]
         except Exception as e:
-            raise YahooExceptions.YahooAllModulesNotFoundError(e)
+            return YahooSummaryResponse(symbol, str(YahooExceptions.YahooAllModulesNotFoundError(e)))
 
         # Instantiate the YahooSummaryResponse object.
         ys = YahooSummaryResponse(symbol)
@@ -301,22 +309,27 @@ class YahooSummaryReader(BaseReader):
             ys.company_officers = self._parse_module_asset_profile_company_officers(modules, 'assetProfile')
 
         if self.__include_income_statement_history:
-            ys.income_statement_history = self._parse_module(modules, 'incomeStatementHistory', 'incomeStatementHistory')
+            ys.income_statement_history = self._parse_module(modules, 'incomeStatementHistory',
+                                                             'incomeStatementHistory')
 
         if self.__include_income_statement_history_quarterly:
-            ys.income_statement_history_quarterly = self._parse_module(modules, 'incomeStatementHistoryQuarterly', 'incomeStatementHistory')
+            ys.income_statement_history_quarterly = self._parse_module(modules, 'incomeStatementHistoryQuarterly',
+                                                                       'incomeStatementHistory')
 
         if self.__include_balance_sheet_history:
             ys.balance_sheet_history = self._parse_module(modules, 'balanceSheetHistory', 'balanceSheetStatements')
 
         if self.__include_balance_sheet_history_quarterly:
-            ys.balance_sheet_history_quarterly = self._parse_module(modules, 'balanceSheetHistoryQuarterly', 'balanceSheetStatements')
+            ys.balance_sheet_history_quarterly = self._parse_module(modules, 'balanceSheetHistoryQuarterly',
+                                                                    'balanceSheetStatements')
 
         if self.__include_cash_flow_statement_history:
-            ys.cash_flow_statement_history = self._parse_module(modules, 'cashflowStatementHistory', 'cashflowStatements')
+            ys.cash_flow_statement_history = self._parse_module(modules, 'cashflowStatementHistory',
+                                                                'cashflowStatements')
 
         if self.__include_cash_flow_statement_history_quarterly:
-            ys.cash_flow_statement_history_quarterly = self._parse_module(modules, 'cashflowStatementHistoryQuarterly', 'cashflowStatements')
+            ys.cash_flow_statement_history_quarterly = self._parse_module(modules, 'cashflowStatementHistoryQuarterly',
+                                                                          'cashflowStatements')
 
         if self.__include_earnings:
             ys.earnings_estimates = self._parse_module_earnings_estimates(modules, 'earnings')
@@ -668,7 +681,7 @@ class YahooSummaryReader(BaseReader):
         # information and None since there was no error.
         return index_trend_info, None
 
-    def _parse_module_index_trend_estimates(self, results_dict, module_name):
+    def _parse_module_index_trend_estimates(self, modules_dict, module_name):
         """
         Method to parse the indexTrend module returned from the Yahoo Finance API call. The indexTrend module is
         uniquely parsed because it contains two separate pieces of data: The index trend's information and the index
@@ -684,7 +697,7 @@ class YahooSummaryReader(BaseReader):
         # Attempt to find the indexTrend module and the estimates submodule. If the module is not found, then it will
         # return None and a YahooModuleNotFoundError.
         try:
-            index_trend_info = results_dict[module_name]
+            index_trend_info = modules_dict[module_name]
             index_trend_estimates = index_trend_info['estimates']
 
         except Exception as e:
@@ -737,7 +750,7 @@ class YahooSummaryReader(BaseReader):
         # information and None since there was no error.
         return calender_events_earnings, None
 
-    def _parse_module_calendar_events_dividends(self, results_dict, module_name):
+    def _parse_module_calendar_events_dividends(self, modules_dict, module_name):
         """
         Method to parse the calendarEvents module returned from the Yahoo Finance API call. The calendarEvents module is
         uniquely parsed because it contains two separate pieces of data: The company's earnings events and the company's
@@ -753,7 +766,7 @@ class YahooSummaryReader(BaseReader):
         # Attempt to find the calendarEvents module and the dividends submodule. If the module is not found, then it
         # will return None and a YahooModuleNotFoundError.
         try:
-            dividends = results_dict[module_name]
+            dividends = modules_dict[module_name]
 
             # Removes the earnings submodule.
             del dividends['earnings']
@@ -774,6 +787,15 @@ class YahooSummaryReader(BaseReader):
         return calendar_events_dividends, None
 
     def _format_dataframe(self, data_dictionary):
+        """
+        Method to format the response dictionary from a requested module.
+        :param data_dictionary: The dictionary data from the requested module.
+        :type data_dictionary: dict
+        :return: A formatted dataframe containing the data.
+        :rtype pd.Dataframe
+        """
+
+        # Checks to see if there are any dictionaries or lists within the data that need to be flattened.
         if isinstance(data_dictionary, list):
             module = [flatten(data) for data in data_dictionary]
             module = pd.DataFrame(module)
@@ -781,15 +803,17 @@ class YahooSummaryReader(BaseReader):
             module = flatten(data_dictionary)
             module = pd.DataFrame([module])
 
+        # Due to the way Yahoo Finance API returns numeric types, the raw integer value is preferred. Therefore, any
+        # values with the suffix longfmt (long format) or fmt (format) are removed.
         module_columns = [column for column in module.columns
                           if not ('.fmt' in column or '.longFmt' in column)]
+
+        # Get a new dataframe.
         module = module[module_columns]
 
+        # Format the headers of the column to match PEP8 standards.
         new_columns_dict = {col: self.__pep_pattern.sub('_', col.split('.')[0]).lower() for col in
                             module.columns}
         module.rename(columns=new_columns_dict, inplace=True)
 
         return module
-
-    def _handle_read_exception(self, symbol, exception):
-        return YahooSummaryResponse(symbol, exception)
