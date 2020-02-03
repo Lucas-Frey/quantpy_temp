@@ -1,10 +1,10 @@
 from quantpy.data.base.BaseReader import BaseReader
-import pandas as pd
-from collections import MutableMapping
+from quantpy.data.yahoo.YahooSummaryResponse import YahooSummaryResponse
+from quantpy.utils.utils import flatten
 
 import quantpy.data.yahoo.YahooExceptions as YahooExceptions
+import pandas as pd
 import re
-import warnings
 
 
 class YahooSummaryReader(BaseReader):
@@ -37,8 +37,69 @@ class YahooSummaryReader(BaseReader):
                  include_upgrade_downgrade_history=False,
                  include_net_share_purchase_activity=False,
                  include_all=False,
-                 retry_count=3, pause=0.1, timeout=5):
-
+                 timeout=5):
+        """
+        Constructor for the YahooSummaryReader class to read copmany summaries from the Yahoo Finance API.
+        :param symbols: The company(s) for which summaries are to be retrieved.
+        :type symbols: Union[str, list]
+        :param include_asset_profile: Include a company's profile and company officer list.
+        :type include_asset_profile: bool
+        :param include_income_statement_history: Include a company's income statement history?
+        :type include_income_statement_history: bool
+        :param include_income_statement_history_quarterly: Include a company's quarterly income statement history
+        :type include_income_statement_history_quarterly: bool
+        :param include_balance_sheet_history: Include a company's balance sheet history.
+        :type include_balance_sheet_history: bool
+        :param include_balance_sheet_history_quarterly: Include a company's quarterly balance sheet history.
+        :type include_balance_sheet_history_quarterly: bool
+        :param include_cash_flow_statement_history: Include a company's cash flow statement history.
+        :type include_cash_flow_statement_history: bool
+        :param include_cash_flow_statement_history_quarterly: Include a company's quarterly cash flow statement history.
+        :type include_cash_flow_statement_history_quarterly: bool
+        :param include_earnings: Include a company's earnings estimates and financials.
+        :type include_earnings: bool
+        :param include_earnings_history: Include a company's earnings history.
+        :type include_earnings_history: bool
+        :param include_financial_data: Include a company's financial data.
+        :type include_financial_data: bool
+        :param include_default_key_statistics: Include a company's key statistics.
+        :type include_default_key_statistics: bool
+        :param include_institution_ownership: Include a company's insitutional owners.
+        :type include_institution_ownership: bool
+        :param include_insider_holders: Include a company's insider holders.
+        :type include_insider_holders: bool
+        :param include_insider_transactions: Include a company's insider transactions.
+        :type include_insider_transactions: bool
+        :param include_fund_ownership: Include a company's fund owners.
+        :type include_fund_ownership: bool
+        :param include_major_direct_holders: Include a company's major direct holders.
+        :type include_major_direct_holders: bool
+        :param include_major_direct_holders_breakdown: Include a company's major direct holders breakdown.
+        :type include_major_direct_holders_breakdown: bool
+        :param include_recommendation_trend: Include a company's recommendation trend.
+        :type include_recommendation_trend: bool
+        :param include_earnings_trend: Include a company's earnings trend.
+        :type include_earnings_trend: bool
+        :param include_industry_trend: Include a company's industry trend.
+        :type include_industry_trend: bool
+        :param include_index_trend: Include a company's index trend information and estimates.
+        :type include_index_trend: bool
+        :param include_sector_trend: Include a company's sector trend.
+        :type include_sector_trend: bool
+        :param include_calendar_events: Include a company's earnings events and dividends events.
+        :type include_calendar_events: bool
+        :param include_sec_filings: Include a company's SEC filings history.
+        :type include_sec_filings: bool
+        :param include_upgrade_downgrade_history: Include a company's upgrade and downgrade history.
+        :type include_upgrade_downgrade_history: bool
+        :param include_net_share_purchase_activity: Include a company's net purchase activity.
+        :type include_net_share_purchase_activity: bool
+        :param include_all: Include all available information about the company.
+        :type include_all: bool
+        :param timeout: How long too allow for the request before it
+        :type timeout: float
+        """
+        # Assign all financial information to the value requested.
         self.__include_asset_profile = include_all or include_asset_profile
         self.__include_income_statement_history = include_all or include_income_statement_history
         self.__include_income_statement_history_quarterly = include_all or include_income_statement_history_quarterly
@@ -51,6 +112,7 @@ class YahooSummaryReader(BaseReader):
         self.__include_financial_data = include_all or include_financial_data
         self.__include_default_key_statistics = include_all or include_default_key_statistics
 
+        # Assign all holders information to the value requested.
         self.__include_institution_ownership = include_all or include_institution_ownership
         self.__include_insider_holders = include_all or include_insider_holders
         self.__include_insider_transactions = include_all or include_insider_transactions
@@ -58,12 +120,14 @@ class YahooSummaryReader(BaseReader):
         self.__include_major_direct_holders = include_all or include_major_direct_holders
         self.__include_major_direct_holders_breakdown = include_all or include_major_direct_holders_breakdown
 
+        # Assign all trends information to the value requested.
         self.__include_recommendation_trend = include_all or include_recommendation_trend
         self.__include_earnings_trend = include_all or include_earnings_trend
         self.__include_industry_trend = include_all or include_industry_trend
         self.__include_index_trend = include_all or include_index_trend
         self.__include_sector_trend = include_all or include_sector_trend
 
+        # Assign all non-financial information to the value requested.
         self.__include_calendar_events = include_all or include_calendar_events
         self.__include_sec_filings = include_all or include_sec_filings
         self.__include_upgrade_downgrade_history = include_all or include_upgrade_downgrade_history
@@ -71,16 +135,18 @@ class YahooSummaryReader(BaseReader):
 
         self.__include_all = include_all
 
+        # Set the pattern used to define the response dataframe schema formatting.
         self.__pep_pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
         # Call the super class' constructor.
-        super().__init__(symbols=symbols, retry_count=retry_count, pause=pause,
-                         timeout=timeout)
+        super().__init__(symbols=symbols, timeout=timeout)
 
     @property
     def _url(self):
         """
-        Method to get the url of the API endpoint for Yahoo! Finance.
+        Property to get the url for the Yahoo Finance summary API. The API needs to be formatted with a symbol.
+        :return: A string containing the API url that needs to be formatted.
+        :rtype: str
         """
 
         return 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/{}'
@@ -88,12 +154,15 @@ class YahooSummaryReader(BaseReader):
     @property
     def _params(self):
         """
-        Method to get the parameters for the API endpoint.
-        :return: A dictionary of parameters. This is called after sanitization.
-        :rtype dict
+        Property to get a string containing the comma separated list of parameters for the Yahoo Finance summary API.
+        :return: A dict containing a modules key with a string containing the comma separated list of parameters value.
+        :rtype: dict
         """
+
+        # Set the string list to empty.
         modules_list = ''
 
+        # Check to see which financial parameters need to be included in the string list.
         if self.__include_asset_profile:
             modules_list += 'assetProfile,'
         if self.__include_income_statement_history:
@@ -117,6 +186,7 @@ class YahooSummaryReader(BaseReader):
         if self.__include_default_key_statistics:
             modules_list += 'defaultKeyStatistics,'
 
+        # Check to see which holders parameters need to be included in the string list.
         if self.__include_institution_ownership:
             modules_list += 'institutionOwnership,'
         if self.__include_insider_holders:
@@ -130,6 +200,7 @@ class YahooSummaryReader(BaseReader):
         if self.__include_major_direct_holders_breakdown:
             modules_list += 'majorHoldersBreakdown,'
 
+        # Check to see which trends parameters need to be included in the string list.
         if self.__include_recommendation_trend:
             modules_list += 'recommendationTrend,'
         if self.__include_earnings_trend:
@@ -141,6 +212,7 @@ class YahooSummaryReader(BaseReader):
         if self.__include_sector_trend:
             modules_list += 'sectorTrend,'
 
+        # Check to see which non-financial parameters need to be included in the string list.
         if self.__include_calendar_events:
             modules_list += 'calendarEvents,'
         if self.__include_sec_filings:
@@ -150,9 +222,15 @@ class YahooSummaryReader(BaseReader):
         if self.__include_net_share_purchase_activity:
             modules_list += 'netSharePurchaseActivity,'
 
+        # Create the dict and return it.
         return {'modules': modules_list}
 
     def _check_init_args(self):
+        """
+        Method to make sure that at least one piece of summary data was requested.
+        :raise ValueError: If no summary values were requested.
+        """
+
         if not (self.__include_asset_profile or
                 self.__include_income_statement_history or
                 self.__include_income_statement_history_quarterly or
@@ -184,200 +262,523 @@ class YahooSummaryReader(BaseReader):
     def _check_data(self, symbol, data=None):
 
         if 'Will be right back' in data.text:
-            return YahooSummaryReader.YahooSummary(symbol,
-                                                   exception=YahooExceptions.YahooRuntimeError('Yahoo Finance is currently down.'))
+            return YahooSummaryResponse(symbol,
+                                        exception=YahooExceptions.YahooRuntimeError('Yahoo Finance is currently down.'))
         else:
             data_json = data.json()
             if data_json['quoteSummary']['result'] is None and data_json['quoteSummary']['error'] is not None:
-                return YahooSummaryReader.YahooSummary(symbol,
-                                                       exception=data_json['quoteSummary']['error']['description'])
+                return YahooSummaryResponse(symbol, exception=data_json['quoteSummary']['error']['description'])
             else:
-                return YahooSummaryReader.YahooSummary(symbol,
-                                                       exception=data_json)
+                return YahooSummaryResponse(symbol, exception=data_json)
 
-    def _parse_data(self, symbol, data):
-        modules = data['quoteSummary']['result'][0]
-        ys = YahooSummaryReader.YahooSummary(symbol)
+    def _parse_data(self, symbol, response_data):
+        """
+        Overridden method to parse through the data revieved from the API call. It will get the list of modules and then
+        it will parse the modules that were requested.
+        :param symbol: The symbol of the company for which the data is being parsed.
+        :type symbol: str
+        :param response_data: The unformatted JSON dictionary data of the company retrieved from the call.
+        :type response_data: dict
+        :return: An object containing all the data requested and recieved from the Yahoo Finance API call.
+        :rtype: YahooSummaryResponse
+        """
+
+        # Instantiate the YahooSummaryResponse object.
+        ys = YahooSummaryResponse(symbol)
+
+        # Get the modules dictionary from the unformatted JSON dictionary. Note, if the modules dictionary is not found,
+        # this will raise an error.
+        try:
+            modules = response_data['quoteSummary']['result'][0]
+        except Exception as e:
+            raise YahooExceptions.YahooAllModulesNotFoundError(e)
+
+        # Instantiate the YahooSummaryResponse object.
+        ys = YahooSummaryResponse(symbol)
 
         if self.__include_asset_profile:
-            try:
-                ys.profile, ys.company_officers = self.__parse_asset_profile_module(modules, 'assetProfile')
-            except Exception as e:
-                ys.profile = None, e
-                ys.company_officers = None, e
+            ys.profile = self._parse_module_asset_profile_profile(modules, 'assetProfile')
+            ys.company_officers = self._parse_module_asset_profile_company_officers(modules, 'assetProfile')
 
         if self.__include_income_statement_history:
-            try:
-                ys.income_statement_history = self.__parse_module(modules, 'incomeStatementHistory', 'incomeStatementHistory')
-            except Exception as e:
-                ys.income_statement_history = None, e
+            ys.income_statement_history = self._parse_module(modules, 'incomeStatementHistory', 'incomeStatementHistory')
 
         if self.__include_income_statement_history_quarterly:
-            try:
-                ys.income_statement_history_quarterly = self.__parse_module(modules, 'incomeStatementHistoryQuarterly', 'incomeStatementHistory')
-            except Exception as e:
-                ys.income_statement_history = None, e
+            ys.income_statement_history_quarterly = self._parse_module(modules, 'incomeStatementHistoryQuarterly', 'incomeStatementHistory')
 
         if self.__include_balance_sheet_history:
-            try:
-                ys.balance_sheet_history = self.__parse_module(modules, 'balanceSheetHistory', 'balanceSheetStatements')
-            except Exception as e:
-                ys.balance_sheet_history = None, e
+            ys.balance_sheet_history = self._parse_module(modules, 'balanceSheetHistory', 'balanceSheetStatements')
 
         if self.__include_balance_sheet_history_quarterly:
-            try:
-                ys.balance_sheet_history_quarterly = self.__parse_module(modules, 'balanceSheetHistoryQuarterly', 'balanceSheetStatements')
-            except Exception as e:
-                ys.balance_sheet_history_quarterly = None, e
+            ys.balance_sheet_history_quarterly = self._parse_module(modules, 'balanceSheetHistoryQuarterly', 'balanceSheetStatements')
 
         if self.__include_cash_flow_statement_history:
-            try:
-                ys.cash_flow_statement_history = self.__parse_module(modules, 'cashflowStatementHistory', 'cashflowStatements')
-            except Exception as e:
-                ys.cash_flow_statement_history = None, e
+            ys.cash_flow_statement_history = self._parse_module(modules, 'cashflowStatementHistory', 'cashflowStatements')
 
         if self.__include_cash_flow_statement_history_quarterly:
-            try:
-                ys.cash_flow_statement_history_quarterly = self.__parse_module(modules, 'cashflowStatementHistoryQuarterly', 'cashflowStatements')
-            except Exception as e:
-                ys.cash_flow_statement_history_quarterly = None, e
+            ys.cash_flow_statement_history_quarterly = self._parse_module(modules, 'cashflowStatementHistoryQuarterly', 'cashflowStatements')
 
         if self.__include_earnings:
-            try:
-                ys.earnings_estimates, ys.earnings_estimates_quarterly, ys.financials_quarterly, ys.financials_yearly = self.__parse_earnings_module(modules, 'earnings')
-            except Exception as e:
-                ys.earnings_estimates = None, e
-                ys.earnings_estimates_quarterly = None, e
-                ys.financials_quarterly = None, e
-                ys.financials_yearly = None, e
+            ys.earnings_estimates = self._parse_module_earnings_estimates(modules, 'earnings')
+            ys.earnings_estimates_quarterly = self._parse_module_earnings_estimates_quarterly(modules, 'earnings')
+            ys.financials_yearly = self._parse_module_earnings_finance_yearly(modules, 'earnings')
+            ys.financials_quarterly = self._parse_module_earnings_finance_quarterly(modules, 'earnings')
 
         if self.__include_earnings_history:
-            try:
-                ys.earnings_history = self.__parse_module(modules, 'earningsHistory', 'history')
-            except Exception as e:
-                ys.earnings_history = None, e
+            ys.earnings_history = self._parse_module(modules, 'earningsHistory', 'history')
 
         if self.__include_financial_data:
-            try:
-                ys.financial_data = self.__parse_module(modules, 'financialData')
-            except Exception as e:
-                ys.financial_data = None, e
+            ys.financial_data = self._parse_module(modules, 'financialData')
 
         if self.__include_default_key_statistics:
-            try:
-                ys.default_key_statistics = self.__parse_module(modules, 'defaultKeyStatistics')
-            except Exception as e:
-                ys.default_key_statistics = None, e
+            ys.default_key_statistics = self._parse_module(modules, 'defaultKeyStatistics')
 
         if self.__include_institution_ownership:
-            try:
-                ys.institution_ownership = self.__parse_module(modules, 'institutionOwnership', 'ownershipList')
-            except Exception as e:
-                ys.institution_ownership = None, e
+            ys.institution_ownership = self._parse_module(modules, 'institutionOwnership', 'ownershipList')
 
         if self.__include_insider_holders:
-            try:
-                ys.insider_holders = self.__parse_module(modules, 'insiderHolders', 'holders')
-            except Exception as e:
-                ys.insider_holders = None, e
+            ys.insider_holders = self._parse_module(modules, 'insiderHolders', 'holders')
 
         if self.__include_insider_transactions:
-            try:
-                ys.insider_transactions = self.__parse_module(modules, 'insiderTransactions', 'transactions')
-            except Exception as e:
-                ys.insider_transactions = None, e
+            ys.insider_transactions = self._parse_module(modules, 'insiderTransactions', 'transactions')
 
         if self.__include_fund_ownership:
-            try:
-                ys.fund_ownership = self.__parse_module(modules, 'fundOwnership', 'ownershipList')
-            except Exception as e:
-                ys.fund_ownership = None, e
+            ys.fund_ownership = self._parse_module(modules, 'fundOwnership', 'ownershipList')
 
         if self.__include_major_direct_holders:
-            try:
-                ys.major_direct_holders = self.__parse_module(modules, 'majorDirectHolders', 'holders')
-            except Exception as e:
-                ys.major_direct_holders = None, e
+            ys.major_direct_holders = self._parse_module(modules, 'majorDirectHolders', 'holders')
 
         if self.__include_major_direct_holders_breakdown:
-            try:
-                ys.major_direct_holders_breakdown = self.__parse_module(modules, 'majorHoldersBreakdown')
-            except Exception as e:
-                ys.major_direct_holders_breakdown = None, e
+            ys.major_direct_holders_breakdown = self._parse_module(modules, 'majorHoldersBreakdown')
 
         if self.__include_recommendation_trend:
-            try:
-                ys.recommendation_trend = self.__parse_module(modules, 'recommendationTrend', 'trend')
-            except Exception as e:
-                ys.recommendation_trend = None, e
+            ys.recommendation_trend = self._parse_module(modules, 'recommendationTrend', 'trend')
 
         if self.__include_earnings_trend:
-            try:
-                ys.earnings_trend = self.__parse_module(modules, 'earningsTrend', 'trend')
-            except Exception as e:
-                ys.earnings_trend = None, e
+            ys.earnings_trend = self._parse_module(modules, 'earningsTrend', 'trend')
 
         if self.__include_industry_trend:
-            try:
-                ys.industry_trend = self.__parse_module(modules, 'industryTrend')
-            except Exception as e:
-                ys.industry_trend = None, e
+            ys.industry_trend = self._parse_module(modules, 'industryTrend')
 
         if self.__include_index_trend:
-            try:
-                ys.index_trend_info, ys.index_trend_estimate = self.__parse_index_trend_module(modules, 'indexTrend')
-            except Exception as e:
-                ys.index_trend = None, e
+            ys.index_trend_info = self._parse_module_index_trend_info(modules, 'indexTrend')
+            ys.index_trend_estimate = self._parse_module_index_trend_estimates(modules, 'indexTrend')
 
         if self.__include_sector_trend:
-            try:
-                ys.sector_trend = self.__parse_module(modules, 'sectorTrend')
-            except Exception as e:
-                ys.sector_trend = None, e
+            ys.sector_trend = self._parse_module(modules, 'sectorTrend')
 
         if self.__include_calendar_events:
-            try:
-                ys.calendar_events_earnings, ys.calendar_events_dividends = self.__parse_calendar_events_module(modules, 'calendarEvents')
-            except Exception as e:
-                ys.calendar_events_earnings = None, e
-                ys.calendar_events_dividends = None, e
+            ys.calendar_events_earnings = self._parse_module_calendar_events_earnings(modules, 'calendarEvents')
+            ys.calendar_events_dividends = self._parse_module_calendar_events_dividends(modules, 'calendarEvents')
 
         if self.__include_sec_filings:
-            try:
-                ys.sec_filings = self.__parse_module(modules, 'secFilings', 'filings')
-            except Exception as e:
-                ys.sec_filings = None, e
+            ys.sec_filings = self._parse_module(modules, 'secFilings', 'filings')
 
         if self.__include_upgrade_downgrade_history:
-            try:
-                ys.upgrade_downgrade_history = self.__parse_module(modules, 'upgradeDowngradeHistory', 'history')
-            except Exception as e:
-                ys.upgrade_downgrade_history = None, e
+            ys.upgrade_downgrade_history = self._parse_module(modules, 'upgradeDowngradeHistory', 'history')
 
         if self.__include_net_share_purchase_activity:
-            try:
-                ys.net_share_purchase_activity = self.__parse_module(modules, 'netSharePurchaseActivity')
-            except Exception as e:
-                ys.net_share_purchase_activity = None, e
+            ys.net_share_purchase_activity = self._parse_module(modules, 'netSharePurchaseActivity')
 
         return ys
 
-    def __parse_module(self, modules_dict, module_name, submodule_name=None):
-        if not submodule_name:
+    def _parse_module(self, modules_dict, module_name, submodule_name=None):
+        """
+        Method to parse an individual requested module returned from the Yahoo Finance API call.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :param submodule_name: The name of the submodule to be parsed. Some modules are wrapped in another dictionary.
+        :type submodule_name: str
+        :return: A tuple containing a dataframe containing the information and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the module to be parsed. If the module is not found, then it will return None and a
+        # YahooModuleNotFoundError.
+        try:
+            # Checks to see if there is a submodule.
+            if not submodule_name:
+                module = modules_dict[module_name]
+            else:
+                module = modules_dict[module_name][submodule_name]
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            module_dataframe = self._format_dataframe(module)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the module information and
+        # None since there was no error.
+        return module_dataframe, None
+
+    def _parse_module_asset_profile_profile(self, modules_dict, module_name):
+        """
+        Method to parse the assetProfile module returned from the Yahoo Finance API call. The assetProfile module is
+        uniquely parsed because it contains two separate pieces of data: The company profile and the company officers.
+        This method will parse the profile portion of the assetProfile.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the assetProfile module. If the module is not found, then it will return None and a
+        # YahooModuleNotFoundError.
+        try:
+            profile_dict = modules_dict[module_name]
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            # We are going to remove the company officer's submodule to be parsed later.
+            del profile_dict['companyOfficers']
+            profile = self._format_dataframe(profile_dict)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the profile
+        # information and None since there was no error.
+        return profile, None
+
+    def _parse_module_asset_profile_company_officers(self, modules_dict, module_name):
+        """
+        Method to parse the assetProfile module returned from the Yahoo Finance API call. The assetProfile module is
+        uniquely parsed because it contains two separate pieces of data: The company profile and the company officers.
+        This method will parse the company officers portion of the assetProfile.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the assetProfile and the company_officers submodule. If the module is not found, then it will
+        # return None and a YahooModuleNotFoundError.
+        try:
+            profile_dict = modules_dict[module_name]
+            company_officers_dict = profile_dict['companyOfficers']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            company_officers = self._format_dataframe(company_officers_dict)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return company_officers, None
+
+    def _parse_module_earnings_estimates(self, modules_dict, module_name):
+        """
+        Method to parse the earnings module returned from the Yahoo Finance API call. The earnings module is uniquely
+        parsed because it contains four separate pieces of data: The company earnings estimates, the company quarterly
+        earnings estimates, the company's yearly financials, and the company's quarterly financials.
+        This method will parse the company's earnings estimates.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the earnings and the earningsChart submodule. If the module is not found, then it will
+        # return None and a YahooModuleNotFoundError.
+        try:
+            earnings_estimates_dict = modules_dict[module_name]['earningsChart']
+            del earnings_estimates_dict['quarterly']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            # Sometimes the earnings data portion is returned as a list instead of a date.
+            if isinstance(earnings_estimates_dict['earningsDate'], list):
+                earnings_estimates_dict['earningsDate'] = earnings_estimates_dict['earningsDate'][0]
+
+            earnings_estimates = self._format_dataframe(earnings_estimates_dict)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return earnings_estimates, None
+
+    def _parse_module_earnings_estimates_quarterly(self, modules_dict, module_name):
+        """
+        Method to parse the earnings module returned from the Yahoo Finance API call. The earnings module is uniquely
+        parsed because it contains four separate pieces of data: The company earnings estimates, the company quarterly
+        earnings estimates, the company's yearly financials, and the company's quarterly financials.
+        This method will parse the company's quarterly earnings estimates.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the earnings, earningsChart, and quarterly submodule. If the module is not found, then it will
+        # return None and a YahooModuleNotFoundError.
+        try:
             module = modules_dict[module_name]
-        else:
-            module = modules_dict[module_name][submodule_name]
+            quarterly_earnings_estimates = module['earningsChart']['quarterly']
 
-        module_dataframe = self.__format_dataframe(module)
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
 
-        return module_dataframe
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            earnings_quarterly = self._format_dataframe(quarterly_earnings_estimates)
 
-    def __format_dataframe(self, data_dictionary):
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return earnings_quarterly, None
+
+    def _parse_module_earnings_finance_yearly(self, modules_dict, module_name):
+        """
+        Method to parse the earnings module returned from the Yahoo Finance API call. The earnings module is uniquely
+        parsed because it contains four separate pieces of data: The company earnings estimates, the company quarterly
+        earnings estimates, the company's yearly financials, and the company's quarterly financials.
+        This method will parse the company's yearly financials.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the earnings, financialsChart, and yearly submodule. If the module is not found, then it will
+        # return None and a YahooModuleNotFoundError.
+        try:
+            module = modules_dict[module_name]
+            financial_yearly = module['financialsChart']['yearly']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            financial_yearly = self._format_dataframe(financial_yearly)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return financial_yearly, None
+
+    def _parse_module_earnings_finance_quarterly(self, modules_dict, module_name):
+        """
+        Method to parse the earnings module returned from the Yahoo Finance API call. The earnings module is uniquely
+        parsed because it contains four separate pieces of data: The company earnings estimates, the company quarterly
+        earnings estimates, the company's yearly financials, and the company's quarterly financials.
+        This method will parse the company's quarterly financials.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the earnings, financialsChart, and quarterly submodule. If the module is not found, then it
+        # will return None and a YahooModuleNotFoundError.
+        try:
+            module = modules_dict[module_name]
+            financial_quarterly = module['financialsChart']['quarterly']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            financial_quarterly = self._format_dataframe(financial_quarterly)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return financial_quarterly, None
+
+    def _parse_module_index_trend_info(self, modules_dict, module_name):
+        """
+        Method to parse the indexTrend module returned from the Yahoo Finance API call. The indexTrend module is
+        uniquely parsed because it contains two separate pieces of data: The index trend's information and the index
+        trend's estimates. This method will parse the index trend's information portion of the indexTrend.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the indexTrend module. If the module is not found, then it will return None and a
+        # YahooModuleNotFoundError.
+        try:
+            index_trend_info = modules_dict[module_name]
+
+            # Removes the estimates submodule.
+            del index_trend_info['estimates']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            index_trend_info = self._format_dataframe(index_trend_info)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return index_trend_info, None
+
+    def _parse_module_index_trend_estimates(self, results_dict, module_name):
+        """
+        Method to parse the indexTrend module returned from the Yahoo Finance API call. The indexTrend module is
+        uniquely parsed because it contains two separate pieces of data: The index trend's information and the index
+        trend's estimates. This method will parse the index trend's estimates portion of the indexTrend.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the indexTrend module and the estimates submodule. If the module is not found, then it will
+        # return None and a YahooModuleNotFoundError.
+        try:
+            index_trend_info = results_dict[module_name]
+            index_trend_estimates = index_trend_info['estimates']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            index_trend_estimates = self._format_dataframe(index_trend_estimates)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return index_trend_estimates, None
+
+    def _parse_module_calendar_events_earnings(self, modules_dict, module_name):
+        """
+        Method to parse the calendarEvents module returned from the Yahoo Finance API call. The calendarEvents module is
+        uniquely parsed because it contains two separate pieces of data: The company's earnings events and the company's
+        dividends dates. This method will parse the company's earnings dates portion of the calendarEvents.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the calendarEvents module and the earnings submodule. If the module is not found, then it will
+        # return None and a YahooModuleNotFoundError.
+        try:
+            calender_events_earnings = modules_dict[module_name]['earnings']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            if isinstance(calender_events_earnings['earningsDate'], list):
+                calender_events_earnings['earningsDate'] = calender_events_earnings['earningsDate'][0]
+
+            calender_events_earnings = self._format_dataframe(calender_events_earnings)
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return calender_events_earnings, None
+
+    def _parse_module_calendar_events_dividends(self, results_dict, module_name):
+        """
+        Method to parse the calendarEvents module returned from the Yahoo Finance API call. The calendarEvents module is
+        uniquely parsed because it contains two separate pieces of data: The company's earnings events and the company's
+        dividends dates. This method will parse the company's dividends dates portion of the calendarEvents.
+        :param modules_dict: A dictionary containing all the modules.
+        :type modules_dict: dict
+        :param module_name: The name of the module to be parsed.
+        :type module_name: str
+        :return: A tuple containing a dataframe containing the company profile and None, or None and an error.
+        :rtype: tuple
+        """
+
+        # Attempt to find the calendarEvents module and the dividends submodule. If the module is not found, then it
+        # will return None and a YahooModuleNotFoundError.
+        try:
+            dividends = results_dict[module_name]
+
+            # Removes the earnings submodule.
+            del dividends['earnings']
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleNotFoundError(e)
+
+        # Attempt to get a formatted dataframe from the module. If there was an error formatting the dataframe, then it
+        # will return None and a YahooModuleFormatError.
+        try:
+            calendar_events_dividends = self._format_dataframe(dividends)
+
+        except Exception as e:
+            return None, YahooExceptions.YahooModuleFormatError(e)
+
+        # If the module was found and formatted, then it will return a dataframe containing the company officers
+        # information and None since there was no error.
+        return calendar_events_dividends, None
+
+    def _format_dataframe(self, data_dictionary):
         if isinstance(data_dictionary, list):
-            module = [self.flatten(data) for data in data_dictionary]
+            module = [flatten(data) for data in data_dictionary]
             module = pd.DataFrame(module)
         else:
-            module = self.flatten(data_dictionary)
+            module = flatten(data_dictionary)
             module = pd.DataFrame([module])
 
         module_columns = [column for column in module.columns
@@ -390,456 +791,5 @@ class YahooSummaryReader(BaseReader):
 
         return module
 
-    def __parse_asset_profile_module(self, results_dict, module_name):
-        try:
-            profile_dict = results_dict[module_name]
-            company_officers_dict = profile_dict['companyOfficers']
-            del profile_dict['companyOfficers']
-
-            profile = self.__format_dataframe(profile_dict)
-            company_officers = self.__format_dataframe(company_officers_dict)
-
-            return profile, company_officers
-
-        except Exception as e:
-            return e, e
-
-    def __parse_earnings_module(self, results_dict, module_name):
-        try:
-            module = results_dict[module_name]
-
-            earnings_estimates = module['earningsChart']
-            earnings_quarterly = earnings_estimates['quarterly']
-            del earnings_estimates['quarterly']
-
-            if isinstance(earnings_estimates['earningsDate'], list):
-                earnings_estimates['earningsDate'] = earnings_estimates['earningsDate'][0]
-
-            earnings_estimates = self.__format_dataframe(earnings_estimates)
-            earnings_quarterly = self.__format_dataframe(earnings_quarterly)
-
-            financial_yearly = module['financialsChart']['yearly']
-            financial_quarterly = module['financialsChart']['quarterly']
-
-            financial_yearly = self.__format_dataframe(financial_yearly)
-            financial_quarterly = self.__format_dataframe(financial_quarterly)
-
-            return earnings_estimates, earnings_quarterly, financial_quarterly, financial_yearly
-
-        except Exception as e:
-            return e, e, e, e
-
-    def __parse_index_trend_module(self, results_dict, module_name):
-        try:
-            index_trend_info = results_dict[module_name]
-            index_trend_estimates = index_trend_info['estimates']
-            del index_trend_info['estimates']
-
-            index_trend_info = self.__format_dataframe(index_trend_info)
-            index_trend_estimates = self.__format_dataframe(index_trend_estimates)
-
-            return index_trend_info, index_trend_estimates
-
-        except Exception as e:
-            return e, e
-
-    def __parse_calendar_events_module(self, results_dict, module_name):
-        try:
-            calender_events_earnings = results_dict[module_name]['earnings']
-
-            if isinstance(calender_events_earnings['earningsDate'], list):
-                calender_events_earnings['earningsDate'] = calender_events_earnings['earningsDate'][0]
-
-            calender_events_earnings = self.__format_dataframe(calender_events_earnings)
-
-            dividends = results_dict[module_name]
-            del dividends['earnings']
-
-            calendar_events_dividends = self.__format_dataframe(dividends)
-
-            return calender_events_earnings, calendar_events_dividends
-
-        except Exception as e:
-            return e, e
-
     def _handle_read_exception(self, symbol, exception):
-        return YahooSummaryReader.YahooSummary(symbol, exception)
-
-    def flatten(self, d, parent_key='', sep='.'):
-        items = []
-        for k, v in d.items():
-            new_key = parent_key + sep + k if parent_key else k
-            if isinstance(v, MutableMapping):
-                items.extend(self.flatten(v, new_key, sep=sep).items())
-            else:
-                items.append((new_key, v))
-        return dict(items)
-
-    class YahooSummary:
-
-        class SummaryObject:
-            def __init__(self):
-                self._included = False
-                self._value = None
-                self._error_occurred = False
-                self._error = None
-                self._string_value = ''
-
-            @property
-            def value(self):
-                return self._value
-
-            @value.setter
-            def value(self, value):
-                self._included = True
-                self._value = value
-
-            @property
-            def included(self):
-                return self._included
-
-            @property
-            def error(self):
-                return self._error
-
-            @error.setter
-            def error(self, value):
-                self._error_occurred = True
-                _error = value
-
-            @property
-            def error_occurred(self):
-                return self._error_occurred
-
-        def __init__(self, symbol, exception=None):
-            self.__profile = None
-            self.__company_officers = None
-            self.__income_statement_history = None
-            self.__income_statement_history_quarterly = None
-            self.__balance_sheet_history = None
-            self.__balance_sheet_history_quarterly = None
-            self.__cash_flow_statement_history = None
-            self.__cash_flow_statement_history_quarterly = None
-            self.__earnings_estimates = None
-            self.__earnings_estimates_quarterly = None
-            self.__financials_quarterly = None
-            self.__financials_yearly = None
-            self.__earnings_history = None
-            self.__financial_data = None
-            self.__default_key_statistics = None
-
-            self.__institution_ownership = None
-            self.__insider_holders = None
-            self.__insider_transactions = None
-            self.__fund_ownership = None
-            self.__major_direct_holders = None
-            self.__major_direct_holders_breakdown = None
-
-            self.__recommendation_trend = None
-            self.__earnings_trend = None
-            self.__industry_trend = None
-            self.__index_trend_info = None
-            self.__index_trend_estimate = None
-            self.__sector_trend = None
-
-            self.__calendar_events_earnings = None
-            self.__calendar_events_dividends = None
-            self.__sec_filings = None
-            self.__upgrade_downgrade_history = None
-            self.__net_share_purchase_activity = None
-
-            self.__symbol = symbol
-            self.__exception = exception
-
-        @property
-        def symbol(self):
-            return self.__symbol
-
-        @property
-        def exception(self):
-            return self.__exception
-
-        @property
-        def profile(self):
-            return self._handle_read_summary(self.__profile)
-
-        @profile.setter
-        def profile(self, value=None, error=None):
-            self.__profile = self._handle_write_summary(value, error)
-
-        @property
-        def company_officers(self):
-            return self._handle_read_summary(self.__company_officers)
-
-        @company_officers.setter
-        def company_officers(self, value, error=None):
-            self.__company_officers = self._handle_write_summary(value, error)
-
-        @property
-        def income_statement_history(self):
-            return self._handle_read_summary(self.__income_statement_history)
-
-        @income_statement_history.setter
-        def income_statement_history(self, value, error=None):
-            self.__income_statement_history = self._handle_write_summary(value, error)
-
-        @property
-        def income_statement_history_quarterly(self):
-            return self._handle_read_summary(self.__income_statement_history_quarterly)
-
-        @income_statement_history_quarterly.setter
-        def income_statement_history_quarterly(self, value, error=None):
-            self.__income_statement_history_quarterly = self._handle_write_summary(value, error)
-
-        @property
-        def balance_sheet_history(self):
-            return self._handle_read_summary(self.__balance_sheet_history)
-
-        @balance_sheet_history.setter
-        def balance_sheet_history(self, value, error=None):
-            self.__balance_sheet_history = self._handle_write_summary(value, error)
-
-        @property
-        def balance_sheet_history_quarterly(self):
-            return self._handle_read_summary(self.__balance_sheet_history_quarterly)
-
-        @balance_sheet_history_quarterly.setter
-        def balance_sheet_history_quarterly(self, value, error=None):
-            self.__balance_sheet_history_quarterly = self._handle_write_summary(value, error)
-
-        @property
-        def cash_flow_statement_history(self):
-            return self._handle_read_summary(self.__cash_flow_statement_history)
-
-        @cash_flow_statement_history.setter
-        def cash_flow_statement_history(self, value, error=None):
-            self.__cash_flow_statement_history = self._handle_write_summary(value, error)
-
-        @property
-        def cash_flow_statement_history_quarterly(self):
-            return self._handle_read_summary(self.__cash_flow_statement_history_quarterly)
-
-        @cash_flow_statement_history_quarterly.setter
-        def cash_flow_statement_history_quarterly(self, value, error=None):
-            self.__cash_flow_statement_history_quarterly = self._handle_write_summary(value, error)
-
-        @property
-        def earnings_estimates(self):
-            return self._handle_read_summary(self.__earnings_estimates)
-
-        @earnings_estimates.setter
-        def earnings_estimates(self, value, error=None):
-            self.__earnings_estimates = self._handle_write_summary(value, error)
-
-        @property
-        def earnings_estimates_quarterly(self):
-            return self._handle_read_summary(self.__earnings_estimates_quarterly)
-
-        @earnings_estimates_quarterly.setter
-        def earnings_estimates_quarterly(self, value, error=None):
-            self.__earnings_estimates_quarterly = self._handle_write_summary(value, error)
-
-        @property
-        def financials_quarterly(self):
-            return self._handle_read_summary(self.__financials_quarterly)
-
-        @financials_quarterly.setter
-        def financials_quarterly(self, value, error=None):
-            self.__financials_quarterly = self._handle_write_summary(value, error)
-
-        @property
-        def financials_yearly(self):
-            return self._handle_read_summary(self.__financials_yearly)
-
-        @financials_yearly.setter
-        def financials_yearly(self, value, error=None):
-            self.__financials_yearly = self._handle_write_summary(value, error)
-
-        @property
-        def earnings_history(self):
-            return self._handle_read_summary(self.__earnings_history)
-
-        @earnings_history.setter
-        def earnings_history(self, value, error=None):
-            self.__earnings_history = self._handle_write_summary(value, error)
-
-        @property
-        def financial_data(self):
-            return self._handle_read_summary(self.__financial_data)
-
-        @financial_data.setter
-        def financial_data(self, value, error=None):
-            self.__financial_data = self._handle_write_summary(value, error)
-
-        @property
-        def default_key_statistics(self):
-            return self._handle_read_summary(self.__default_key_statistics)
-
-        @default_key_statistics.setter
-        def default_key_statistics(self, value, error=None):
-            self.__default_key_statistics = self._handle_write_summary(value, error)
-
-        @property
-        def institution_ownership(self):
-            return self._handle_read_summary(self.__institution_ownership)
-
-        @institution_ownership.setter
-        def institution_ownership(self, value, error=None):
-            self.__institution_ownership = self._handle_write_summary(value, error)
-
-        @property
-        def insider_holders(self):
-            return self._handle_read_summary(self.__insider_holders)
-
-        @insider_holders.setter
-        def insider_holders(self, value, error=None):
-            self.__insider_holders = self._handle_write_summary(value, error)
-
-        @property
-        def insider_transactions(self):
-            return self._handle_read_summary(self.__insider_transactions)
-
-        @insider_transactions.setter
-        def insider_transactions(self, value, error=None):
-            self.__insider_transactions = self._handle_write_summary(value, error)
-
-        @property
-        def fund_ownership(self):
-            return self._handle_read_summary(self.__fund_ownership)
-
-        @fund_ownership.setter
-        def fund_ownership(self, value, error=None):
-            self.__fund_ownership = self._handle_write_summary(value, error)
-
-        @property
-        def major_direct_holders(self):
-            return self._handle_read_summary(self.__major_direct_holders)
-
-        @major_direct_holders.setter
-        def major_direct_holders(self, value, error=None):
-            self.__major_direct_holders = self._handle_write_summary(value, error)
-
-        @property
-        def major_direct_holders_breakdown(self):
-            return self._handle_read_summary(self.__major_direct_holders_breakdown)
-
-        @major_direct_holders_breakdown.setter
-        def major_direct_holders_breakdown(self, value, error=None):
-            self.__major_direct_holders_breakdown = self._handle_write_summary(value, error)
-
-        @property
-        def recommendation_trend(self):
-            return self._handle_read_summary(self.__recommendation_trend)
-
-        @recommendation_trend.setter
-        def recommendation_trend(self, value, error=None):
-            self.__recommendation_trend = self._handle_write_summary(value, error)
-
-        @property
-        def earnings_trend(self):
-            return self._handle_read_summary(self.__earnings_trend)
-
-        @earnings_trend.setter
-        def earnings_trend(self, value, error=None):
-            self.__earnings_trend = self._handle_write_summary(value, error)
-
-        @property
-        def industry_trend(self):
-            return self._handle_read_summary(self.__industry_trend)
-
-        @industry_trend.setter
-        def industry_trend(self, value, error=None):
-            self.__industry_trend = self._handle_write_summary(value, error)
-
-        @property
-        def index_trend_info(self):
-            return self._handle_read_summary(self.__index_trend_info)
-
-        @index_trend_info.setter
-        def index_trend_info(self, value, error=None):
-            self.__index_trend_info = self._handle_write_summary(value, error)
-
-        @property
-        def index_trend_estimate(self):
-            return self._handle_read_summary(self.__index_trend_estimate)
-
-        @index_trend_estimate.setter
-        def index_trend_estimate(self, value, error=None):
-            self.__index_trend_estimate = self._handle_write_summary(value, error)
-
-        @property
-        def sector_trend(self):
-            return self._handle_read_summary(self.__sector_trend)
-
-        @sector_trend.setter
-        def sector_trend(self, value, error=None):
-            self.__sector_trend = self._handle_write_summary(value, error)
-
-        @property
-        def calendar_events_earnings(self):
-            return self._handle_read_summary(self.__calendar_events_earnings)
-
-        @calendar_events_earnings.setter
-        def calendar_events_earnings(self, value, error=None):
-            self.__calendar_events_earnings = self._handle_write_summary(value, error)
-
-        @property
-        def calendar_events_dividends(self):
-            return self._handle_read_summary(self.__calendar_events_dividends)
-
-        @calendar_events_dividends.setter
-        def calendar_events_dividends(self, value, error=None):
-            self.__calendar_events_dividends = self._handle_write_summary(value, error)
-
-        @property
-        def sec_filings(self):
-            return self._handle_read_summary(self.__sec_filings)
-
-        @sec_filings.setter
-        def sec_filings(self, value, error=None):
-            self.__sec_filings = self._handle_write_summary(value, error)
-
-        @property
-        def upgrade_downgrade_history(self):
-            return self._handle_read_summary(self.__upgrade_downgrade_history)
-
-        @upgrade_downgrade_history.setter
-        def upgrade_downgrade_history(self, value, error=None):
-            self.__upgrade_downgrade_history = self._handle_write_summary(value, error)
-
-        @property
-        def net_share_purchase_activity(self):
-            return self._handle_read_summary(self.__net_share_purchase_activity)
-
-        @net_share_purchase_activity.setter
-        def net_share_purchase_activity(self, value, error=None):
-            self.__net_share_purchase_activity = self._handle_write_summary(value, error)
-
-        def _handle_read_summary(self, summary_object):
-            if self.__exception is None:
-                if summary_object:
-                    if summary_object.included:
-                        return summary_object.value
-                    elif summary_object.error_occurred:
-                        raise Exception(summary_object.error)
-                    else:
-                        return None
-                else:
-                    warnings.warn('The value referenced and was never assigned.')
-                    return None
-            else:
-                warnings.warn(str(self.__exception))
-                return None
-
-        def _handle_write_summary(self, value, error):
-            summary_object = YahooSummaryReader.YahooSummary.SummaryObject()
-
-            if value is not None and error is not None:
-                raise ValueError('Cannot assign both a value and an error.')
-            else:
-                if value is not None:
-                    summary_object.value = value
-                else:
-                    summary_object.error = error
-
-            return summary_object
+        return YahooSummaryResponse(symbol, exception)

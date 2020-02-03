@@ -10,3 +10,15 @@ class YahooRuntimeError(YahooError):
 class YahooRequestError(YahooError):
     pass
 
+
+class YahooAllModulesNotFoundError(YahooError):
+    pass
+
+
+class YahooModuleNotFoundError(YahooError):
+    pass
+
+
+class YahooModuleFormatError(YahooError):
+    pass
+

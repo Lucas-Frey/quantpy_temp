@@ -9,7 +9,7 @@ from requests.exceptions import Timeout
 
 class BaseReader(object):
 
-    def __init__(self, symbols, retry_count=3, pause=0.1, timeout=2):
+    def __init__(self, symbols, timeout=5):
         """
         Initializer method for the BaseReader class.
         :param symbols: The list of symbols to be used.
@@ -23,8 +23,6 @@ class BaseReader(object):
         """
 
         self._symbols = self._parse_symbols(symbols)
-        self._retry_count = retry_count
-        self._pause = pause
         self._timeout = timeout
         self._read_called = False
 

@@ -4,6 +4,7 @@ import warnings
 import pandas as pd
 import quantpy.data.yahoo.YahooExceptions as YahooExceptions
 from quantpy.data.base.BaseReader import BaseReader
+from quantpy.data.yahoo.YahooQuoteResponse import YahooQuoteResponse
 
 
 class YahooQuoteReader(BaseReader):
@@ -184,81 +185,4 @@ class YahooQuoteReader(BaseReader):
         return error
 
     def _handle_read_exception(self, symbol, exception):
-        return YahooQuoteReader.YahooQuote(symbol, exception)
-
-    class YahooQuote:
-
-        class QuoteObject:
-
-            def __init__(self):
-                self._included = False
-                self._value = None
-                self._error_occurred = False
-                self._error = None
-
-            @property
-            def value(self):
-                return self._value
-
-            @value.setter
-            def value(self, value):
-                self._included = True
-                self._value = value
-
-            @property
-            def included(self):
-                return self._included
-
-            @property
-            def error(self):
-                return self._error
-
-            @error.setter
-            def error(self, value):
-                self._error_occurred = True
-                _error = value
-
-            @property
-            def error_occurred(self):
-                return self._error_occurred
-
-        def __init__(self, symbol, exception):
-            self.__quote = None
-
-            self.__symbol = symbol
-            self._exception = exception
-
-        @property
-        def symbol(self):
-            return self.__symbol
-
-        @property
-        def quote(self):
-            return self.__handle_read_quote(self.__quote)
-
-        @quote.setter
-        def quote(self, value, error=None):
-            self.__handle_write_quote(value, error)
-
-        def __handle_read_quote(self, summary_object):
-            if summary_object:
-                if summary_object.included:
-                    return summary_object.value
-                else:
-                    return None
-            else:
-                warnings.warn('The value referenced and was never assigned.')
-                return None
-
-        def __handle_write_quote(self, value, error):
-            summary_object = YahooQuoteReader.YahooQuote.QuoteObject()
-
-            if value and error:
-                raise ValueError('Cannot assign both a value and an error.')
-            else:
-                if value and not error:
-                    summary_object.value = value
-                else:
-                    summary_object.error = error
-
-            return summary_object
+        return YahooQuoteResponse(symbol, exception)
