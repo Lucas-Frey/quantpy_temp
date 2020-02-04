@@ -22,3 +22,10 @@ class YahooModuleNotFoundError(YahooError):
 class YahooModuleFormatError(YahooError):
     pass
 
+
+class YahooIndicatorNotFoundError(YahooError):
+    pass
+
+class YahooIndicatorFormatError(YahooError):
+    pass
+

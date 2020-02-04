@@ -2,9 +2,7 @@ import abc
 import requests
 import multiprocessing
 import itertools
-import time
 from pebble import ProcessPool
-from requests.exceptions import Timeout
 
 
 class BaseReader(object):
@@ -19,7 +17,10 @@ class BaseReader(object):
         """
 
         # Parse the symbols. They'll need to be in a list form.
-        self._symbols = self._parse_symbols(symbols)
+        if isinstance(symbols, str):
+            self._symbols = symbols.split(' ')
+        else:
+            self._symbols = [symbols]
 
         self._timeout = timeout
         self._read_called = False
@@ -49,15 +50,6 @@ class BaseReader(object):
         raise NotImplementedError('Subclass has not implemented property.')
 
     @abc.abstractmethod
-    def _check_data(self, symbol, data):
-        """
-        Method to check the data for errors. Must be implemented by a subclass.
-        :return: The sanitized data.
-        """
-
-        raise NotImplementedError('Subclass has not implemented property.')
-
-    @abc.abstractmethod
     def _check_init_args(self):
         """
         Method to check that the init args are in a proper configuration. Must be implemented by a subclass.
@@ -83,18 +75,6 @@ class BaseReader(object):
         """
 
         raise NotImplementedError('Subclass has not implemented property.')
-
-    def _parse_symbols(self, symbols):
-        """
-        Symbols can be a string or a list. It will turn them into a list.
-        :param symbols: A list of the str symbols.
-        :return: list
-        """
-
-        if isinstance(symbols, str):
-            symbols = symbols.split(' ')
-
-        return symbols
 
     def read(self):
         """
@@ -154,7 +134,7 @@ class BaseReader(object):
         :param symbol: The symbol being requested.
         :type symbol str
         :param session: The session to be used when requesting. Default is None.
-        :type requests.Session()
+        :type session: requests.Session
         :return: A dictionary mapping the symbol to its response.
         :rtype dict
         """
@@ -172,7 +152,7 @@ class BaseReader(object):
                                         timeout=self._timeout)
 
             # Parse the response.
-            return self._parse_response(symbol, response.json())
+            return self._parse_response(symbol, response)
 
         except Exception as response_error:
             # Catches all other errors related to getting the information.

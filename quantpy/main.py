@@ -1,19 +1,9 @@
-from quantpy.data.yahoo.YahooSummaryReader import YahooSummaryReader
+from quantpy.data.yahoo.YahooQuoteReader import YahooQuoteReader
 import inspect
 
 
 def main():
-    summary = YahooSummaryReader('AAPL').read()
-
-    for prop in dir(summary):
-        if(prop[:2] != "__"):
-            print(prop, getattr(summary, prop).value)
-
-
-
-    ysr = YahooSummaryReader(*['AAPL', False])
-
-    print(1)
+    quote = YahooQuoteReader('AAPL', period='max').read()
 
 if __name__=='__main__':
     main()

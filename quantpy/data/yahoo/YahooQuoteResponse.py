@@ -4,8 +4,9 @@ import warnings
 
 class YahooQuoteResponse(BaseResponse):
 
-    def __init__(self, symbol, exception):
+    def __init__(self, symbol, exception=None):
         self.__quote = None
+        self.__meta = None
 
         super().__init__(symbol=symbol, exception=exception)
 
@@ -44,4 +45,12 @@ class YahooQuoteResponse(BaseResponse):
 
     @quote.setter
     def quote(self, value, error=None):
+        self._handle_write(value, error)
+
+    @property
+    def meta(self):
+        return self._handle_read(self.__quote)
+
+    @meta.setter
+    def meta(self, value, error=None):
         self._handle_write(value, error)

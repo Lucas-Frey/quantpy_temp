@@ -259,18 +259,6 @@ class YahooSummaryReader(BaseReader):
                 self.__include_net_share_purchase_activity):
             raise ValueError('Did not specify any summary values to get.')
 
-    def _check_data(self, symbol, data=None):
-
-        if 'Will be right back' in data.text:
-            return YahooSummaryResponse(symbol,
-                                        exception=YahooExceptions.YahooRuntimeError('Yahoo Finance is currently down.'))
-        else:
-            data_json = data.json()
-            if data_json['quoteSummary']['result'] is None and data_json['quoteSummary']['error'] is not None:
-                return YahooSummaryResponse(symbol, exception=data_json['quoteSummary']['error']['description'])
-            else:
-                return YahooSummaryResponse(symbol, exception=data_json)
-
     def _parse_response_error(self, symbol, exception):
         """
         Overridden method to handle exception raised from readed the Yahoo Finance API response.
@@ -282,24 +270,26 @@ class YahooSummaryReader(BaseReader):
         """
         return YahooSummaryResponse(symbol, exception)
 
-    def _parse_response(self, symbol, response_data):
+    def _parse_response(self, symbol, response_data_json):
         """
         Overridden method to parse through the data revieved from the API call. It will get the list of modules and then
         it will parse the modules that were requested.
         :param symbol: The symbol of the company for which the data is being parsed.
         :type symbol: str
-        :param response_data: The unformatted JSON dictionary data of the company retrieved from the call.
-        :type response_data: dict
+        :param response_data_json: The JSON dictionary data of the company retrieved from the call.
+        :type response_data_json: json response object
         :return: An object containing all the data requested and recieved from the Yahoo Finance API call.
         :rtype: YahooSummaryResponse
         """
+
+        response_data = response_data_json.json()
 
         # Get the modules dictionary from the unformatted JSON dictionary. Note, if the modules dictionary is not found,
         # this will raise an error.
         try:
             modules = response_data['quoteSummary']['result'][0]
-        except Exception as e:
-            return YahooSummaryResponse(symbol, str(YahooExceptions.YahooAllModulesNotFoundError(e)))
+        except Exception:
+            return self._parse_module_error(symbol, response_data_json)
 
         # Instantiate the YahooSummaryResponse object.
         ys = YahooSummaryResponse(symbol)
@@ -394,6 +384,20 @@ class YahooSummaryReader(BaseReader):
             ys.net_share_purchase_activity = self._parse_module(modules, 'netSharePurchaseActivity')
 
         return ys
+
+    def _parse_module_error(self, symbol, response_data):
+        if 'Will be right back' in response_data.text:
+            exception = str(YahooExceptions.YahooRuntimeError('Yahoo Finance is currently down.'))
+            return YahooSummaryResponse(symbol, exception)
+
+        else:
+            if response_data['quoteSummary']['result'] is None and response_data['quoteSummary']['error'] is not None:
+                exception = str(YahooExceptions.YahooRequestError(response_data['quoteSummary']['error']['description']))
+                return YahooSummaryResponse(symbol, exception)
+
+            else:
+                exception = str(YahooExceptions.YahooRequestError(response_data))
+                return YahooSummaryResponse(symbol, exception)
 
     def _parse_module(self, modules_dict, module_name, submodule_name=None):
         """
